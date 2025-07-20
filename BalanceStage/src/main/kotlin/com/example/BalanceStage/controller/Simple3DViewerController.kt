@@ -18,11 +18,11 @@ import javafx.stage.Stage
 import javafx.util.Duration
 import org.fxyz3d.importers.Importer3D
 import org.springframework.stereotype.Component
+import java.io.BufferedReader
 import java.io.File
+import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.max
-
-// ... 생략된 import 구문 유지 ...
 
 @Component
 class Simple3DViewerController {
@@ -36,6 +36,8 @@ class Simple3DViewerController {
     private var model: Node? = null
     private var anchorX = 0.0
     private var anchorY = 0.0
+
+    private val rotatingMeshes = mutableMapOf<String, Rotate>()
 
     @FXML
     fun initialize() {
@@ -69,6 +71,9 @@ class Simple3DViewerController {
 
         resetView()
         loadModel()
+
+        TestWheelData.start()
+        startFetchingWheelDataFromApi()
     }
 
     @FXML
@@ -93,11 +98,6 @@ class Simple3DViewerController {
             model = model3D.root
             root3D.children += model!!
 
-            model3D.meshViews.forEach { meshView ->
-                println("🎯 meshView.id: ${meshView.id}")
-            }
-
-            // ✅ Object002와 Object004 (2) 각각 회전 적용
             val rotatingIds = setOf("Object002", "Object004 (2)")
             for (meshView in model3D.meshViews) {
                 if (meshView.id in rotatingIds) {
@@ -108,21 +108,8 @@ class Simple3DViewerController {
 
                     val rot = Rotate(0.0, centerX, centerY, centerZ, Rotate.Y_AXIS)
                     meshView.transforms.add(rot)
-
-                    val targetAngle = 90.0
-                    val anglePerFrame = 0.2
-                    val frameCount = (targetAngle / anglePerFrame).toInt()
-
-                    Timeline(
-                        KeyFrame(Duration.millis(16.0), EventHandler {
-                            rot.angle += anglePerFrame
-                        })
-                    ).apply {
-                        cycleCount = frameCount
-                        play()
-                    }
-
-                    println("🌀 ${meshView.id} -> ${targetAngle}도만 회전하도록 설정됨")
+                    rotatingMeshes[meshView.id] = rot
+                    println("회전 대상 등록됨: ${meshView.id}")
                 }
             }
 
@@ -132,6 +119,39 @@ class Simple3DViewerController {
         } catch (e: Exception) {
             e.printStackTrace()
             setStatus("로딩 오류: ${e.message}")
+        }
+    }
+
+    private fun startFetchingWheelDataFromApi() {
+        Timeline(KeyFrame(Duration.seconds(1.0), EventHandler {
+            try {
+                val url = URL("http://localhost:8080/api/positions")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.connectTimeout = 1000
+                conn.readTimeout = 1000
+
+                val response = conn.inputStream.bufferedReader().use(BufferedReader::readText)
+                println("응답 원문: $response")
+
+                val angle1 = "\"firstWheel\"\\s*:\\s*(-?[0-9.eE]+)".toRegex()
+                    .find(response)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+                val angle2 = "\"secondWheel\"\\s*:\\s*(-?[0-9.eE]+)".toRegex()
+                    .find(response)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+
+                Platform.runLater {
+                    rotatingMeshes["Object002"]?.angle = angle1
+                    rotatingMeshes["Object004 (2)"]?.angle = angle2
+                    status.text = "적용됨: 1st=$angle1°, 2nd=$angle2°"
+                    println("적용됨: 1st=$angle1°, 2nd=$angle2°")
+                }
+
+            } catch (e: Exception) {
+                println("API 가져오기 실패: ${e.message}")
+            }
+        })).apply {
+            cycleCount = Animation.INDEFINITE
+            play()
         }
     }
 
