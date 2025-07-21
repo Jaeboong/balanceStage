@@ -690,12 +690,37 @@ class HelloController : Initializable {
         logMessage("포인트 검색을 시작합니다")
         // TODO: Implement point finding algorithm
     }
-    
+
     @FXML
     private fun onThreeDButtonClick(event: ActionEvent) {
+        // 1) 화면 레이블에서 현재 값 읽어서 ResultData 생성
+        val rd = ResultData(
+            name             = inputInfoCombo?.selectionModel?.selectedItem ?: "",
+            points           = pointList.toList(),
+            bpDirection      = bRpDirLabel?.text?.removeSuffix("°")?.toDouble() ?: 0.0,
+            bpAngle          = bRpAngLabel?.text?.toDouble() ?: 0.0,
+            apDirection      = aRpDirLabel?.text?.removeSuffix("°")?.toDouble() ?: 0.0,
+            apAngle          = aRpAngLabel?.text?.toDouble() ?: 0.0,
+            centerShiftX     = shiftXLabel?.text?.toDouble() ?: 0.0,
+            centerShiftY     = shiftYLabel?.text?.toDouble() ?: 0.0,
+            centerShiftZ     = shiftZLabel?.text?.toDouble() ?: 0.0,
+            firstWheel       = firstWheelText?.text?.removeSuffix("°")?.toDouble() ?: 0.0,
+            secondWheel      = secondWheelText?.text?.removeSuffix("°")?.toDouble() ?: 0.0,
+            firstWheelMinus  = firstMinusWheelText?.text?.removeSuffix("°")?.toDouble() ?: 0.0,
+            secondWheelMinus = secondMinusWheelText?.text?.removeSuffix("°")?.toDouble() ?: 0.0,
+            angleTracking    = inAngleMax?.text?.removeSuffix("°")?.toDouble() ?: 0.0,
+            productCode      = productCodeLabel?.text ?: "",
+            recipe           = nameOfRecipe?.text ?: ""
+        )
+
+        // 2) Simple3DViewerController 에 전달
+        Simple3DViewerController.lastResultData = rd
+
+        // 3) 뷰어 열기
         logMessage("3D 뷰어를 실행합니다")
         openThreeDViewer()
     }
+
     
     private fun openThreeDViewer() {
         try {

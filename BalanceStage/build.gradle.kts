@@ -12,7 +12,7 @@ version = "0.0.1-SNAPSHOT"
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
+		languageVersion.set(JavaLanguageVersion.of(17))
 	}
 }
 
@@ -23,28 +23,30 @@ repositories {
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
-	
-	// JavaFX dependencies
+
+	// JavaFX modules - 모든 필요한 모듈 추가
 	implementation("org.openjfx:javafx-controls:21")
 	implementation("org.openjfx:javafx-fxml:21")
+	implementation("org.openjfx:javafx-graphics:21")
+	implementation("org.openjfx:javafx-base:21")
+
+	// JavaFX UI libraries
 	implementation("org.controlsfx:controlsfx:11.1.2")
 	implementation("com.dlsc.formsfx:formsfx-core:11.6.0") {
 		exclude(group = "org.openjfx")
 	}
-	
-	// Serial Communication
-	implementation("com.fazecast:jSerialComm:2.10.4")
-	
-	// FXyz 3D + GLB/GLTF Importers (0.6.x 정식 아티팩트 이름)
-	val fxyzVersion = "0.6.0"
 
+	// Serial communication
+	implementation("com.fazecast:jSerialComm:2.10.4")
+
+	// FXyz 3D & GLB/GLTF Importer
+	val fxyzVersion = "0.6.0"
 	implementation("org.fxyz3d:fxyz3d:$fxyzVersion")
 	implementation("org.fxyz3d:fxyz3d-importers:$fxyzVersion")
 
-	
-	// JSON Processing for 3D Models (FXyz3D에서도 사용)
+	// JSON for 3D models
 	implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
-	
+
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -55,8 +57,8 @@ application {
 }
 
 javafx {
-    version = "21"
-    modules("javafx.controls", "javafx.fxml")
+	version = "21"
+	modules("javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.base")
 }
 
 kotlin {
@@ -69,10 +71,20 @@ tasks.withType<Test> {
 	useJUnitPlatform()
 }
 
+// JavaFX 애플리케이션 실행을 위한 설정
 tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
-    jvmArgs = listOf(
-        "--module-path", configurations.runtimeClasspath.get().asPath,
-        "--add-modules", "javafx.controls,javafx.fxml,javafx.graphics",
-        "--add-opens", "javafx.graphics/com.sun.javafx.iio=ALL-UNNAMED"
-    )
+	jvmArgs = listOf(
+		"--add-opens", "javafx.graphics/com.sun.javafx.iio=ALL-UNNAMED",
+		"--add-opens", "javafx.graphics/com.sun.javafx.scene=ALL-UNNAMED",
+		"--add-opens", "javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED"
+	)
+}
+
+// 일반 Java 애플리케이션 실행을 위한 설정
+tasks.named<JavaExec>("run") {
+	jvmArgs = listOf(
+		"--add-opens", "javafx.graphics/com.sun.javafx.iio=ALL-UNNAMED",
+		"--add-opens", "javafx.graphics/com.sun.javafx.scene=ALL-UNNAMED",
+		"--add-opens", "javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED"
+	)
 }
