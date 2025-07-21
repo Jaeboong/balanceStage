@@ -36,8 +36,8 @@ class Simple3DViewerController {
     private var model: Node? = null
     private var anchorX = 0.0
     private var anchorY = 0.0
-
     private val rotatingMeshes = mutableMapOf<String, Rotate>()
+    private var fetchTimer: Timeline? = null
 
     @FXML
     fun initialize() {
@@ -123,7 +123,9 @@ class Simple3DViewerController {
     }
 
     private fun startFetchingWheelDataFromApi() {
-        Timeline(KeyFrame(Duration.seconds(1.0), EventHandler {
+        fetchTimer?.stop()
+
+        fetchTimer = Timeline(KeyFrame(Duration.seconds(1.0), EventHandler {
             try {
                 val url = URL("http://localhost:8080/api/positions")
                 val conn = url.openConnection() as HttpURLConnection
@@ -166,6 +168,9 @@ class Simple3DViewerController {
 
     @FXML
     fun closeViewer() {
+        TestWheelData.stop()
+        fetchTimer?.stop()
+        fetchTimer = null
         (subScene.scene?.window as? Stage)?.close()
     }
 

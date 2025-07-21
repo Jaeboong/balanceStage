@@ -8,14 +8,13 @@ import kotlin.concurrent.fixedRateTimer
 class TestWheelData {
     companion object {
         private val random = Random()
-        private var started = false
+        private var timer: Timer? = null
 
         fun start() {
-            if (started) return
-            started = true
+            stop() // 중복 실행 방지 위해 기존 타이머 중단
             println("TestWheelData 시작됨")
 
-            fixedRateTimer("SendFakeData", daemon = true, initialDelay = 2000, period = 1000) {
+            timer = fixedRateTimer("SendFakeData", daemon = true, initialDelay = 2000, period = 1000) {
                 val firstWheel = random.nextDouble() * 180
                 val secondWheel = random.nextDouble() * 180
 
@@ -40,6 +39,12 @@ class TestWheelData {
                     e.printStackTrace()
                 }
             }
+        }
+
+        fun stop() {
+            println("TestWheelData 중단됨")
+            timer?.cancel()
+            timer = null
         }
     }
 }
