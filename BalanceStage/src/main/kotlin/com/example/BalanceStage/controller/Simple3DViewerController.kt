@@ -1,6 +1,6 @@
 package com.example.BalanceStage.controller
 
-import com.example.BalanceStage.controller.Simple3DViewerController
+import javafx.animation.Animation
 import javafx.animation.KeyFrame
 import javafx.animation.Timeline
 import javafx.application.Platform
@@ -10,6 +10,7 @@ import javafx.fxml.FXML
 import javafx.scene.*
 import javafx.scene.control.Label
 import javafx.scene.input.MouseButton
+import javafx.scene.input.MouseEvent
 import javafx.scene.input.ScrollEvent
 import javafx.scene.paint.Color
 import javafx.scene.paint.PhongMaterial
@@ -23,145 +24,188 @@ import javafx.stage.Stage
 import javafx.util.Duration
 import org.fxyz3d.importers.Importer3D
 import org.springframework.stereotype.Component
-import java.io.BufferedReader
 import java.io.File
-
-import kotlin.math.max
-
-import com.example.BalanceStage.controller.ResultData
-
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.math.max
 
 @Component
 class Simple3DViewerController {
 
     companion object {
-        /** HelloController 에서 세팅해 주는 최신 결과 데이터 */
-        var lastResultData: ResultData? = null
-
         private const val AXIS_THICKNESS_FACTOR = 0.05
-        private const val LABEL_FONT_SIZE       = 24.0
-
+        private const val LABEL_FONT_SIZE = 24.0
         private const val MODEL_OFFSET_X = 50.0
         private const val MODEL_OFFSET_Y = 60.0
-
         private const val XZ_SCALE_FACTOR = 4.0
-        private const val Y_SCALE_FACTOR  = 2.0
+        private const val Y_SCALE_FACTOR = 2.0
+
+        var lastResultData: ResultData? = null  // ← HelloController에서 사용할 수 있도록 추가
     }
 
-    // ——— 여기에 추가된 휠/각도 레이블 바인딩 ———
     @FXML private lateinit var wheelDelta1Label: Label
     @FXML private lateinit var wheelDelta2Label: Label
-    @FXML private lateinit var bRpAngleLabel:     Label
-    @FXML private lateinit var aRpAngleLabel:     Label
-    // ————————————————————————————————
-
+    @FXML private lateinit var bRpAngleLabel: Label
+    @FXML private lateinit var aRpAngleLabel: Label
     @FXML private lateinit var subScene: SubScene
-    @FXML private lateinit var root3D:    Group
-    @FXML private lateinit var camera:   PerspectiveCamera
-    @FXML private lateinit var status:   Label
+    @FXML private lateinit var root3D: Group
+    @FXML private lateinit var camera: PerspectiveCamera
+    @FXML private lateinit var status: Label
 
-    private val camGroup   = Group()
-    private val axisGroup  = Group()
+    private val camGroup = Group()
+    private val axisGroup = Group()
     private val planeGroup = Group()
-
-    private val planeMaterial = PhongMaterial().apply {
-        diffuseColor  = Color.GRAY
-        specularColor = Color.GRAY
-    }
-
     private var modelNode: Node? = null
-    private var anchorX = 0.0
-    private var anchorY = 0.0
     private val rotatingMeshes = mutableMapOf<String, Rotate>()
     private var fetchTimer: Timeline? = null
 
-    private var axisLengthX   = 100.0
-    private var axisLengthY   = 100.0
-    private var axisLengthZ   = 100.0
+    private var anchorX = 0.0
+    private var anchorY = 0.0
+    private var axisLengthX = 100.0
+    private var axisLengthY = 100.0
+    private var axisLengthZ = 100.0
     private var axisThickness = 2.0
-    private var showAxes      = true
+    private var showAxes = true
+
+    private val planeMaterial = PhongMaterial().apply {
+        diffuseColor = Color.GRAY
+        specularColor = Color.GRAY
+    }
 
     @FXML
     fun initialize() {
-        // 카메라 설정
         camera.fieldOfView = 60.0
-        camera.nearClip    = 0.1
-        camera.farClip     = 10000.0
+        camera.nearClip = 0.1
+        camera.farClip = 10000.0
 
-        // 그룹에 카메라 추가
         camGroup.children += camera
-        root3D.children   += camGroup
+        root3D.children += camGroup
 
         subScene.depthTest = DepthTest.ENABLE
-        subScene.fill      = Color.WHITE
+        subScene.fill = Color.WHITE
 
-        // 조명
-        root3D.children += AmbientLight(Color.rgb(230,230,230))
-        root3D.children += PointLight(Color.WHITE).apply {
-            translateX = -1000.0; translateY = -1000.0; translateZ = -1000.0
-        }
-        root3D.children += PointLight(Color.WHITE).apply {
-            translateX = 1000.0; translateY =  800.0; translateZ = 1200.0
-        }
+        root3D.children += listOf(
+            AmbientLight(Color.rgb(230, 230, 230)),
+            PointLight(Color.WHITE).apply { translateX = -1000.0; translateY = -1000.0; translateZ = -1000.0 },
+            PointLight(Color.WHITE).apply { translateX = 1000.0; translateY = 800.0; translateZ = 1200.0 }
+        )
 
-        // 평면 & 축
         root3D.children += planeGroup
         root3D.children += axisGroup
         createPlane()
         createAxes()
 
-        // 마우스 컨트롤
-        subScene.setOnMousePressed { e ->
-            anchorX = e.sceneX; anchorY = e.sceneY
-        }
-        subScene.setOnMouseDragged { e ->
-            val dx = e.sceneX - anchorX
-            val dy = e.sceneY - anchorY
-            anchorX = e.sceneX; anchorY = e.sceneY
-            when (e.button) {
-                MouseButton.PRIMARY   -> {
-                    camGroup.transforms += Rotate(-dy * 0.3, Rotate.X_AXIS)
-                    camGroup.transforms += Rotate( dx * 0.3, Rotate.Y_AXIS)
-                }
-                MouseButton.MIDDLE    -> camGroup.transforms += Translate(-dx, -dy, 0.0)
-                MouseButton.SECONDARY -> camera.translateZ += dy * 0.5
-                else                  -> {}
-            }
-        }
+        subScene.onMousePressed = EventHandler(::rememberAnchor)
+        subScene.onMouseDragged = EventHandler(::rotateCamera)
         subScene.onScroll = EventHandler(::zoomCamera)
 
-        // 모델 로드
+        resetView()
         loadModel()
+        startFakeWheelData()
 
-        // ——— 이 부분만 추가: 휠 변화량과 각도 값을 상단에 전달 ———
+        // 레이블 초기화
         lastResultData?.let { rd ->
             wheelDelta1Label.text = String.format("ΔWh1: %.3f°", rd.firstWheelMinus)
             wheelDelta2Label.text = String.format("ΔWh2: %.3f°", rd.secondWheelMinus)
-            bRpAngleLabel.text     = String.format("B_P Angle: %.4f", rd.bpAngle)
-            aRpAngleLabel.text     = String.format("A_P Angle: %.4f", rd.apAngle)
+            bRpAngleLabel.text = String.format("B_P Angle: %.4f", rd.bpAngle)
+            aRpAngleLabel.text = String.format("A_P Angle: %.4f", rd.apAngle)
         }
-        // ————————————————————————————————————————————————
-        TestWheelData.start()
-        startFetchingWheelDataFromApi()
     }
 
-    /** 평면 그리기 */
+    @FXML
+    fun loadModel(event: ActionEvent? = null) {
+        try {
+            setStatus("OBJ 모델 로딩 중...")
+            val url = javaClass.getResource("/3d/Gear-1.obj")
+                ?: return setStatus("[에러] Gear-1.obj 파일을 찾을 수 없습니다")
+
+            val parent = File(url.toURI()).parentFile
+            if (!File(parent, "Gear.mtl").exists())
+                setStatus("경고: MTL 파일이 없어 색상이 적용되지 않을 수 있습니다")
+
+            val imp = Importer3D.load(url)
+            modelNode?.let { root3D.children.remove(it) }
+            modelNode = imp.root
+            root3D.children += imp.root
+
+            val rotatingIds = setOf("Object002", "Object004 (2)")
+            for (meshView in imp.meshViews) {
+                if (meshView.id in rotatingIds) {
+                    val bounds = meshView.boundsInParent
+                    val centerX = bounds.minX + bounds.width / 2
+                    val centerY = bounds.minY + bounds.height / 2
+                    val centerZ = bounds.minZ + bounds.depth / 2
+                    val rot = Rotate(0.0, centerX, centerY, centerZ, Rotate.Y_AXIS)
+                    meshView.transforms.add(rot)
+                    rotatingMeshes[meshView.id] = rot
+                    println("회전 대상 등록됨: ${meshView.id}")
+                }
+            }
+
+            val b = imp.root.boundsInParent
+            val cx = b.minX + b.width / 2
+            val cy = b.minY + b.height / 2
+            val cz = b.minZ + b.depth / 2
+            val base = max(max(b.width, b.height), b.depth).takeIf { it > 0 } ?: 100.0
+
+            imp.root.transforms.setAll(
+                Translate(-cx + MODEL_OFFSET_X, -cy + MODEL_OFFSET_Y, -cz),
+                Rotate(180.0, Rotate.X_AXIS)
+            )
+
+            axisLengthX = base * XZ_SCALE_FACTOR
+            axisLengthY = base * Y_SCALE_FACTOR
+            axisLengthZ = base * XZ_SCALE_FACTOR
+            axisThickness = base * AXIS_THICKNESS_FACTOR
+
+            createAxes()
+            createPlane()
+
+            Platform.runLater { fitCameraTo(imp.root) }
+            setStatus("모델 로드 완료 (${imp.meshViews.size} meshes)")
+        } catch (e: Exception) {
+            e.printStackTrace()
+            setStatus("로딩 오류: ${e.message}")
+        }
+    }
+
+    private fun startFakeWheelData() {
+        fetchTimer?.stop()
+        fetchTimer = Timeline(KeyFrame(Duration.seconds(1.0), EventHandler {
+            val angle1 = (-180..180).random().toDouble()
+            val angle2 = (-180..180).random().toDouble()
+            Platform.runLater {
+                rotatingMeshes["Object002"]?.angle = angle1
+                rotatingMeshes["Object004 (2)"]?.angle = angle2
+                status.text = "랜덤 적용됨: 1st=$angle1°, 2nd=$angle2°"
+            }
+        })).apply {
+            cycleCount = Animation.INDEFINITE
+            play()
+        }
+    }
+
     private fun createPlane() {
         planeGroup.children.clear()
         val sizeX = axisLengthX * 2
         val sizeZ = axisLengthZ * 2
         val plane = Box(sizeX, 0.01, sizeZ).apply {
-            material  = planeMaterial
-            cullFace  = CullFace.BACK
+            material = planeMaterial
+            cullFace = CullFace.BACK
             translateY = -0.005
         }
         planeGroup.children += plane
     }
 
-    /** 축 그리기 (X,Z축 화살 제거) */
+    private fun createTextLabel(text: String, color: Color): Text {
+        return Text(text).apply {
+            fill = color
+            font = Font.font(LABEL_FONT_SIZE)
+            isMouseTransparent = true
+            depthTest = DepthTest.DISABLE
+            style = "-fx-font-weight: bold;"
+        }
+    }
+
+
     private fun createAxes() {
         axisGroup.children.clear()
         axisGroup.transforms.clear()
@@ -193,97 +237,16 @@ class Simple3DViewerController {
         axisGroup.isVisible         = showAxes
     }
 
-    /** 3D 모델 로드 */
-    @FXML
-    fun loadModel(event: ActionEvent? = null) {
-        try {
-            setStatus("OBJ 모델 로딩 중…")
-            val url = javaClass.getResource("/3d/Gear-1.obj")
-                ?: return setStatus("[에러] Gear-1.obj 파일을 찾을 수 없습니다")
-            val parent = File(url.toURI()).parentFile
-            if (!File(parent, "Gear.mtl").exists())
-                setStatus("경고: MTL 파일이 없어 색상이 적용되지 않을 수 있습니다")
 
-            val imp = Importer3D.load(url)
-            modelNode?.let { root3D.children.remove(it) }
-            modelNode = imp.root
-            root3D.children += imp.root
-
-            val b    = imp.root.boundsInParent
-            val cx   = b.minX + b.width  / 2
-            val cy   = b.minY + b.height / 2
-            val cz   = b.minZ + b.depth  / 2
-            val base = max(max(b.width, b.height), b.depth).takeIf { it>0 } ?: 100.0
-
-            imp.root.transforms.setAll(
-                Translate(-cx + MODEL_OFFSET_X, -cy + MODEL_OFFSET_Y, -cz),
-                Rotate(180.0, Rotate.X_AXIS)
-            )
-
-
-            axisLengthX   = base * XZ_SCALE_FACTOR
-            axisLengthY   = base * Y_SCALE_FACTOR
-            axisLengthZ   = base * XZ_SCALE_FACTOR
-            axisThickness = base * AXIS_THICKNESS_FACTOR
-
-            createAxes()
-            createPlane()
-
-            val rotatingIds = setOf("Object002", "Object004 (2)")
-            for (meshView in model3D.meshViews) {
-                if (meshView.id in rotatingIds) {
-                    val bounds = meshView.boundsInParent
-                    val centerX = bounds.minX + bounds.width / 2
-                    val centerY = bounds.minY + bounds.height / 2
-                    val centerZ = bounds.minZ + bounds.depth / 2
-
-                    val rot = Rotate(0.0, centerX, centerY, centerZ, Rotate.Y_AXIS)
-                    meshView.transforms.add(rot)
-                    rotatingMeshes[meshView.id] = rot
-                    println("회전 대상 등록됨: ${meshView.id}")
-                }
-            }
-            Platform.runLater { fitCameraTo(model!!) }
-            setStatus("모델 로드 완료 (${imp.meshViews.size} meshes)")
-        } catch (e: Exception) {
-            e.printStackTrace()
-            setStatus("로딩 오류: ${e.message}")
-        }
-    }
-
-    private fun startFetchingWheelDataFromApi() {
-        fetchTimer?.stop()
-
-        fetchTimer = Timeline(KeyFrame(Duration.seconds(1.0), EventHandler {
-            try {
-                val url = URL("http://localhost:8080/api/positions")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 1000
-                conn.readTimeout = 1000
-
-                val response = conn.inputStream.bufferedReader().use(BufferedReader::readText)
-                println("응답 원문: $response")
-
-                val angle1 = "\"firstWheel\"\\s*:\\s*(-?[0-9.eE]+)".toRegex()
-                    .find(response)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
-                val angle2 = "\"secondWheel\"\\s*:\\s*(-?[0-9.eE]+)".toRegex()
-                    .find(response)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
-
-                Platform.runLater {
-                    rotatingMeshes["Object002"]?.angle = angle1
-                    rotatingMeshes["Object004 (2)"]?.angle = angle2
-                    status.text = "적용됨: 1st=$angle1°, 2nd=$angle2°"
-                    println("적용됨: 1st=$angle1°, 2nd=$angle2°")
-                }
-
-            } catch (e: Exception) {
-                println("API 가져오기 실패: ${e.message}")
-            }
-        })).apply {
-            cycleCount = Animation.INDEFINITE
-            play()
-        }
+    private fun fitCameraTo(node: Node) {
+        val b = node.boundsInParent
+        val maxSize = max(max(b.width, b.height), b.depth).takeIf { it > 0 } ?: 100.0
+        val radius = maxSize * 0.6
+        node.scaleX = 3.0; node.scaleY = 3.0; node.scaleZ = 3.0
+        camGroup.transforms.clear()
+        camera.nearClip = 0.1
+        camera.farClip = radius * 20
+        camera.translateZ = -radius * 4.0
     }
 
     @FXML
@@ -296,32 +259,31 @@ class Simple3DViewerController {
     }
 
     @FXML
-
-    fun toggleAxes(event: ActionEvent) {
+    fun toggleAxes(event: ActionEvent? = null) {
         showAxes = !showAxes
         axisGroup.isVisible = showAxes
         setStatus(if (showAxes) "축 표시됨" else "축 숨김됨")
     }
 
     @FXML
-
-    fun closeViewer() {
-        TestWheelData.stop()
+    fun closeViewer(event: ActionEvent? = null) {
         fetchTimer?.stop()
         fetchTimer = null
-        (subScene.scene?.window as? Stage)?.close()
-
+        (subScene.scene.window as? Stage)?.close()
     }
 
-    private fun fitCameraTo(node: Node) {
-        val b       = node.boundsInParent
-        val maxSize = max(max(b.width, b.height), b.depth).takeIf { it>0 } ?: 100.0
-        val radius  = maxSize * 0.6
-        node.scaleX = 3.0; node.scaleY = 3.0; node.scaleZ = 3.0
-        camGroup.transforms.clear()
-        camera.nearClip   = 0.1
-        camera.farClip    = radius * 20
-        camera.translateZ = -radius * 4.0
+    private fun rememberAnchor(e: MouseEvent) {
+        anchorX = e.sceneX
+        anchorY = e.sceneY
+    }
+
+    private fun rotateCamera(e: MouseEvent) {
+        val dx = e.sceneX - anchorX
+        val dy = e.sceneY - anchorY
+        anchorX = e.sceneX
+        anchorY = e.sceneY
+        camGroup.transforms += Rotate(-dy * 0.3, Rotate.X_AXIS)
+        camGroup.transforms += Rotate(dx * 0.3, Rotate.Y_AXIS)
     }
 
     private fun zoomCamera(e: ScrollEvent) {
@@ -332,4 +294,7 @@ class Simple3DViewerController {
         Platform.runLater { status.text = msg }
         println("상태: $msg")
     }
+
+
 }
+
