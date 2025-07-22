@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.BalanceStage.BalanceStageApplicationTests" tests="1" skipped="0" failures="0" errors="0" timestamp="2025-07-19T05:38:25.315Z" hostname="DESKTOP-SN7A7LK" time="7.054">
+  <properties/>
+  <testcase name="contextLoads()" classname="com.example.BalanceStage.BalanceStageApplicationTests" time="7.054"/>
+  <system-out><![CDATA[14:38:11.298 [Test worker] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.example.BalanceStage.BalanceStageApplicationTests]: BalanceStageApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+14:38:12.345 [Test worker] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.example.BalanceStage.BalanceStageApplication for test class com.example.BalanceStage.BalanceStageApplicationTests
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.3)
+
+2025-07-19T14:38:15.889+09:00  INFO 7672 --- [BalanceStage] [    Test worker] c.e.B.BalanceStageApplicationTests       : Starting BalanceStageApplicationTests using Java 17.0.12 with PID 7672 (started by user in C:\Users\user\Desktop\BalanceStage)
+2025-07-19T14:38:15.897+09:00  INFO 7672 --- [BalanceStage] [    Test worker] c.e.B.BalanceStageApplicationTests       : No active profile set, falling back to 1 default profile: "default"
+2025-07-19T14:38:25.271+09:00  INFO 7672 --- [BalanceStage] [    Test worker] c.e.B.BalanceStageApplicationTests       : Started BalanceStageApplicationTests in 11.574 seconds (process running for 22.726)
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

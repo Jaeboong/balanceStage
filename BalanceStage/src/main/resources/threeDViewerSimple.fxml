@@ -52,4 +52,21 @@
         </SubScene>
     </center>
 
+    
+    <!-- 하단 정보 -->
+    <bottom>
+        <VBox style="-fx-background-color: #34495e;">
+            <children>
+                <Label text="FXyz3D 0.6.0 뷰어 - 마우스: 드래그 = 회전, 스크롤 = 줌"
+                       textFill="white" 
+                       style="-fx-font-size: 12px;"
+                       alignment="CENTER">
+                    <padding>
+                        <Insets top="5" bottom="5" left="10" right="10"/>
+                    </padding>
+                </Label>
+            </children>
+        </VBox>
+    </bottom>
+
 </BorderPane>

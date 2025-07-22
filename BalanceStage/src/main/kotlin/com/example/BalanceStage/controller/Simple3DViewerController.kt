@@ -23,11 +23,16 @@ import javafx.stage.Stage
 import javafx.util.Duration
 import org.fxyz3d.importers.Importer3D
 import org.springframework.stereotype.Component
+import java.io.BufferedReader
 import java.io.File
+
 import kotlin.math.max
 
-// ResultData 를 import 해 줍니다
 import com.example.BalanceStage.controller.ResultData
+
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlin.math.max
 
 @Component
 class Simple3DViewerController {
@@ -70,6 +75,8 @@ class Simple3DViewerController {
     private var modelNode: Node? = null
     private var anchorX = 0.0
     private var anchorY = 0.0
+    private val rotatingMeshes = mutableMapOf<String, Rotate>()
+    private var fetchTimer: Timeline? = null
 
     private var axisLengthX   = 100.0
     private var axisLengthY   = 100.0
@@ -137,6 +144,8 @@ class Simple3DViewerController {
             aRpAngleLabel.text     = String.format("A_P Angle: %.4f", rd.apAngle)
         }
         // ————————————————————————————————————————————————
+        TestWheelData.start()
+        startFetchingWheelDataFromApi()
     }
 
     /** 평면 그리기 */
@@ -211,6 +220,7 @@ class Simple3DViewerController {
                 Rotate(180.0, Rotate.X_AXIS)
             )
 
+
             axisLengthX   = base * XZ_SCALE_FACTOR
             axisLengthY   = base * Y_SCALE_FACTOR
             axisLengthZ   = base * XZ_SCALE_FACTOR
@@ -219,11 +229,60 @@ class Simple3DViewerController {
             createAxes()
             createPlane()
 
-            Platform.runLater { fitCameraTo(imp.root) }
+            val rotatingIds = setOf("Object002", "Object004 (2)")
+            for (meshView in model3D.meshViews) {
+                if (meshView.id in rotatingIds) {
+                    val bounds = meshView.boundsInParent
+                    val centerX = bounds.minX + bounds.width / 2
+                    val centerY = bounds.minY + bounds.height / 2
+                    val centerZ = bounds.minZ + bounds.depth / 2
+
+                    val rot = Rotate(0.0, centerX, centerY, centerZ, Rotate.Y_AXIS)
+                    meshView.transforms.add(rot)
+                    rotatingMeshes[meshView.id] = rot
+                    println("회전 대상 등록됨: ${meshView.id}")
+                }
+            }
+            Platform.runLater { fitCameraTo(model!!) }
             setStatus("모델 로드 완료 (${imp.meshViews.size} meshes)")
         } catch (e: Exception) {
             e.printStackTrace()
             setStatus("로딩 오류: ${e.message}")
+        }
+    }
+
+    private fun startFetchingWheelDataFromApi() {
+        fetchTimer?.stop()
+
+        fetchTimer = Timeline(KeyFrame(Duration.seconds(1.0), EventHandler {
+            try {
+                val url = URL("http://localhost:8080/api/positions")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.connectTimeout = 1000
+                conn.readTimeout = 1000
+
+                val response = conn.inputStream.bufferedReader().use(BufferedReader::readText)
+                println("응답 원문: $response")
+
+                val angle1 = "\"firstWheel\"\\s*:\\s*(-?[0-9.eE]+)".toRegex()
+                    .find(response)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+                val angle2 = "\"secondWheel\"\\s*:\\s*(-?[0-9.eE]+)".toRegex()
+                    .find(response)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+
+                Platform.runLater {
+                    rotatingMeshes["Object002"]?.angle = angle1
+                    rotatingMeshes["Object004 (2)"]?.angle = angle2
+                    status.text = "적용됨: 1st=$angle1°, 2nd=$angle2°"
+                    println("적용됨: 1st=$angle1°, 2nd=$angle2°")
+                }
+
+            } catch (e: Exception) {
+                println("API 가져오기 실패: ${e.message}")
+            }
+        })).apply {
+            cycleCount = Animation.INDEFINITE
+            play()
         }
     }
 
@@ -237,6 +296,7 @@ class Simple3DViewerController {
     }
 
     @FXML
+
     fun toggleAxes(event: ActionEvent) {
         showAxes = !showAxes
         axisGroup.isVisible = showAxes
@@ -244,8 +304,13 @@ class Simple3DViewerController {
     }
 
     @FXML
-    fun closeViewer(event: ActionEvent) {
-        (subScene.scene.window as? Stage)?.close()
+
+    fun closeViewer() {
+        TestWheelData.stop()
+        fetchTimer?.stop()
+        fetchTimer = null
+        (subScene.scene?.window as? Stage)?.close()
+
     }
 
     private fun fitCameraTo(node: Node) {
