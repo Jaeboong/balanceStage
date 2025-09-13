@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.geometry.*?>
+
+<BorderPane fx:controller="com.example.BalanceStage.controller.Simple3DViewerController"
+            xmlns:fx="http://javafx.com/fxml" 
+            prefWidth="900" prefHeight="700"
+            style="-fx-background-color: #2c3e50;">
+
+    <!-- 헤더 -->
+    <top>
+        <VBox style="-fx-background-color: #34495e;">
+            <children>
+                <Label text="3D Model Viewer - Balance Master" 
+                       textFill="white" 
+                       style="-fx-font-size: 20px; -fx-font-weight: bold;"
+                       alignment="CENTER">
+                    <padding>
+                        <Insets top="10" bottom="5" left="10" right="10"/>
+                    </padding>
+                </Label>
+                <ToolBar style="-fx-background-color: #34495e;">
+                    <items>
+                        <Button text="Load 3D Model" onAction="#loadModel" 
+                                style="-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                        <Button text="Reset View" onAction="#resetView"
+                                style="-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                        <Separator orientation="VERTICAL"/>
+                        <Label fx:id="status" text="Ready" textFill="white" 
+                               style="-fx-font-size: 14px;"/>
+                        <Separator orientation="VERTICAL"/>
+                        <Button text="Close" onAction="#closeViewer"
+                                style="-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-weight: bold;"/>
+                    </items>
+                </ToolBar>
+            </children>
+        </VBox>
+    </top>
+
+    <!-- 3D 캔버스 -->
+    <center>
+        <SubScene fx:id="subScene" width="800" height="600" 
+                  fill="BLACK">
+            <root>
+                <Group fx:id="root3D"/>
+            </root>
+            <camera>
+                <PerspectiveCamera fx:id="camera"/>
+            </camera>
+        </SubScene>
+    </center>
+    
+    <!-- 하단 정보 -->
+    <bottom>
+        <VBox style="-fx-background-color: #34495e;">
+            <children>
+                <Label text="FXyz3D 0.6.0 GLB 뷰어 - 마우스: 드래그 = 회전, 스크롤 = 줌" 
+                       textFill="white" 
+                       style="-fx-font-size: 12px;"
+                       alignment="CENTER">
+                    <padding>
+                        <Insets top="5" bottom="5" left="10" right="10"/>
+                    </padding>
+                </Label>
+            </children>
+        </VBox>
+    </bottom>
+
+</BorderPane> 
