@@ -25,6 +25,9 @@ import java.nio.file.Paths
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+import com.example.BalanceStage.util.PCAPlaneCalculator
+import com.example.BalanceStage.util.ContourRenderer
+import javafx.scene.canvas.Canvas
 
 // Point 데이터 클래스
 data class PointData(
@@ -65,7 +68,8 @@ class HelloController : Initializable {
 
     // === 등고선 표시용 ===
     @FXML private var contourBox: Pane? = null
-    private var contourImageView: ImageView? = null
+    private var contourCanvas: Canvas? = null
+    private val contourRenderer = ContourRenderer()
 
     // 디바운스 실행기
     private val scheduler = Executors.newSingleThreadScheduledExecutor()
@@ -267,8 +271,19 @@ class HelloController : Initializable {
         setupInitialValues()
         setupEventHandlers()
         createInitialPoint()
-        renderContourSafely()   // 초기 등고선 표시
+
+        // contourBox 크기가 설정된 후 등고선 렌더링
+        contourBox?.widthProperty()?.addListener { _, _, newWidth ->
+            if (newWidth.toDouble() > 0.0 && !hasRenderedInitialContour) {
+                hasRenderedInitialContour = true
+                Platform.runLater {
+                    renderContourSafely()
+                }
+            }
+        }
     }
+
+    private var hasRenderedInitialContour = false
 
     private fun setupInitialValues() {
         // Set default values for input fields
@@ -705,66 +720,81 @@ class HelloController : Initializable {
 
     private fun renderContour() {
         try {
-            // 포인트 → [x,y,z,devi] 배열로 직렬화 (devi가 0이면 z를 대체값으로 사용)
-            val pts = pointList.map { p ->
-                val devi = if (p.deviation != 0.0) p.deviation else p.z
-                listOf(p.x, p.y, p.z, devi)
-            }
-
-            val tmpDir = Files.createTempDirectory("contour").toFile()
-            val inJson = File(tmpDir, "points.json")
-            val outPng = File(tmpDir, "contour.png")
-
-            val json = buildString {
-                append("[")
-                append(pts.joinToString(",") { arr -> "[${arr[0]},${arr[1]},${arr[2]},${arr[3]}]" })
-                append("]")
-            }
-            inJson.writeText(json)
-
-            val projectRoot = System.getProperty("user.dir")
-            val pyScriptPath = Paths.get(projectRoot, "contourLine.py").toFile().absolutePath
-
-            val pb = ProcessBuilder(
-                "python3", pyScriptPath,
-                "--in", inJson.absolutePath,
-                "--out", outPng.absolutePath,
-                "--sigma", "0.50",
-                "--grid", "260",
-                "--cmap", "turbo",
-                "--contours", "24"
-            )
-            pb.redirectErrorStream(true)
-            val proc = pb.start()
-            val output = proc.inputStream.bufferedReader().readText()
-            val exit = proc.waitFor()
-            if (exit != 0) {
-                logMessage("등고선 생성 실패: Python exit=$exit")
-                println(output)
-                return
-            }
-            if (!outPng.exists()) {
-                logMessage("등고선 PNG가 생성되지 않았습니다")
+            // 포인트가 3개 미만이면 렌더링 불가
+            if (pointList.size < 3) {
+                logMessage("등고선 렌더링: 최소 3개 이상의 점이 필요합니다")
                 return
             }
 
-            Platform.runLater {
-                if (contourImageView == null) {
-                    contourImageView = ImageView().apply {
-                        isPreserveRatio = true
-                        fitWidth = contourBox?.width ?: 520.0
-                        fitHeight = contourBox?.height ?: 420.0
-                    }
-                    contourBox?.children?.add(contourImageView)
-                    contourBox?.widthProperty()?.addListener { _, _, w ->
-                        contourImageView?.fitWidth = w.toDouble()
-                    }
-                    contourBox?.heightProperty()?.addListener { _, _, h ->
-                        contourImageView?.fitHeight = h.toDouble()
-                    }
+            // 1. XY 평면 기준으로 Z값 편차 계산 (평균 Z를 기준 평면으로)
+            val avgZ = pointList.map { it.z }.average()
+
+            val deviations = pointList.map { p ->
+                val deviation = p.z - avgZ
+                Triple(p.x, p.y, deviation)
+            }
+
+            // 2. 편차를 pointList에 업데이트 (UI 반영)
+            pointList.forEachIndexed { index, point ->
+                if (index < deviations.size) {
+                    point.deviation = deviations[index].third
                 }
-                contourImageView?.image = Image(outPng.toURI().toString(), false)
-                logMessage("등고선 업데이트 완료")
+            }
+
+            // 디버깅: 기준 평면과 편차 출력
+            logMessage("기준 평면: Z = %.4f (평균 높이)".format(avgZ))
+            deviations.forEachIndexed { i, (x, y, dev) ->
+                val sign = if (dev >= 0) "+" else ""
+                logMessage("  P${i+1}: (%.2f, %.2f, Z=%.4f) 편차=$sign%.4f mm".format(
+                    x, y, pointList[i].z, dev
+                ))
+            }
+
+            // 5. contourBox 크기 확인 (0이면 기본값 사용)
+            val boxWidth = (contourBox?.width?.takeIf { it > 0.0 }) ?: 520.0
+            val boxHeight = (contourBox?.height?.takeIf { it > 0.0 }) ?: 420.0
+
+            // 6. Kotlin 등고선 렌더러로 Canvas 생성
+            val renderer = ContourRenderer(boxWidth, boxHeight)
+            val config = ContourRenderer.ContourConfig(
+                gridSize = 200,
+                numContours = 20,
+                sigma = 0.30,
+                colorMap = ContourRenderer.ColorMap.SPECTRAL
+            )
+
+            val canvas = renderer.render(deviations, config)
+
+            // 7. UI 업데이트 (Platform.runLater)
+            Platform.runLater {
+                if (contourBox == null) {
+                    logMessage("ERROR: contourBox가 null입니다!")
+                    return@runLater
+                }
+
+                // Canvas 최대 크기 제한
+                canvas.width = canvas.width.coerceAtMost(contourBox!!.width)
+                canvas.height = canvas.height.coerceAtMost(contourBox!!.height)
+
+                logMessage("Canvas 크기: ${canvas.width} x ${canvas.height}")
+                logMessage("contourBox 크기: ${contourBox?.width} x ${contourBox?.height}")
+
+                // 기존 캔버스 제거
+                val removedCount = contourBox?.children?.count { it is Canvas } ?: 0
+                contourBox?.children?.removeIf { it is Canvas }
+                logMessage("기존 Canvas $removedCount 개 제거됨")
+
+                // 새 캔버스 추가
+                contourCanvas = canvas
+
+                // Canvas가 컨테이너를 넘어가지 않도록 설정
+                canvas.maxWidth(contourBox!!.width)
+                canvas.maxHeight(contourBox!!.height)
+
+                val added = contourBox?.children?.add(canvas)
+                logMessage("Canvas 추가: $added, 현재 children 수: ${contourBox?.children?.size}")
+
+                logMessage("등고선 업데이트 완료 (평균 Z 기준)")
             }
         } catch (e: Exception) {
             e.printStackTrace()

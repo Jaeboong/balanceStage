@@ -3,6 +3,7 @@ plugins {
     kotlin("plugin.spring") version "1.9.25"
     id("org.springframework.boot") version "3.5.3"
     id("io.spring.dependency-management") version "1.1.7"
+    id("org.openjfx.javafxplugin") version "0.0.13"
     application
 }
 
@@ -18,15 +19,14 @@ repositories {
     mavenCentral()
 }
 
+javafx {
+    version = "17.0.2"
+    modules = listOf("javafx.controls", "javafx.fxml", "javafx.graphics", "javafx.base")
+}
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-
-    // ✅ ARM(M1/M2)용 JavaFX
-    implementation("org.openjfx:javafx-base:17.0.2:mac-aarch64")
-    implementation("org.openjfx:javafx-graphics:17.0.2:mac-aarch64")
-    implementation("org.openjfx:javafx-controls:17.0.2:mac-aarch64")
-    implementation("org.openjfx:javafx-fxml:17.0.2:mac-aarch64")
 
     implementation("org.controlsfx:controlsfx:11.1.2")
     implementation("com.dlsc.formsfx:formsfx-core:11.6.0") { exclude(group = "org.openjfx") }
@@ -49,5 +49,11 @@ application {
     mainClass.set("com.example.BalanceStage.BalanceStageApplication")
 }
 
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    jvmArgs = listOf(
+        "--module-path", classpath.asPath,
+        "--add-modules", "javafx.controls,javafx.fxml,javafx.graphics,javafx.base"
+    )
+}
 
 tasks.withType<Test> { useJUnitPlatform() }
