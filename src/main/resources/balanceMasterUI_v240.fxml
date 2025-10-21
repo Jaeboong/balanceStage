@@ -821,7 +821,7 @@
                                                                 <Label alignment="CENTER" prefHeight="44.0"
                                                                        prefWidth="420.0" text="RESULTS"
                                                                        textAlignment="CENTER" textFill="WHITE"
-                                                                       underline="true">
+                                                                       >
                                                                     <font>
                                                                         <Font name="Arial Bold" size="26.0"/>
                                                                     </font>
