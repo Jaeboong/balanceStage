@@ -17,14 +17,13 @@ import java.util.*
 
 // ===== 추가 import =====
 import javafx.application.Platform
-import javafx.scene.image.Image
-import javafx.scene.image.ImageView
-import java.io.File
-import java.nio.file.Files
-import java.nio.file.Paths
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledFuture
-import java.util.concurrent.TimeUnit
+import javafx.scene.*
+import javafx.scene.paint.Color
+import javafx.scene.paint.PhongMaterial
+import javafx.scene.shape.*
+import javafx.scene.transform.Rotate
+import javafx.geometry.Pos
+import kotlin.math.*
 
 // Point 데이터 클래스
 data class PointData(
@@ -56,7 +55,11 @@ data class ResultData(
 )
 
 @Component
-class HelloController : Initializable {
+class HelloController(
+    @org.springframework.beans.factory.annotation.Qualifier("rbfContourVisualization")
+    private val contourVisualizationService: com.example.BalanceStage.service.ContourVisualizationService,
+    private val rbfSurfaceService: com.example.BalanceStage.service.RbfSurfaceVisualizationService
+) : Initializable {
 
     // Point 관리를 위한 리스트
     private val pointList = mutableListOf<PointData>()
@@ -65,16 +68,8 @@ class HelloController : Initializable {
 
     // === 등고선 표시용 ===
     @FXML private var contourBox: Pane? = null
-    private var contourImageView: ImageView? = null
-
-    // 디바운스 실행기
-    private val scheduler = Executors.newSingleThreadScheduledExecutor()
-    private var pendingTask: ScheduledFuture<*>? = null
-    private fun debounce(delayMs: Long = 200, block: () -> Unit) {
-        pendingTask?.cancel(false)
-        pendingTask = scheduler.schedule({ block() }, delayMs, TimeUnit.MILLISECONDS)
-    }
-    private fun renderContourSafely() = debounce(200) { renderContour() }
+    private var contourSubScene: SubScene? = null
+    private var contourInitialized = false
 
     // 미리 정의된 데이터셋들
     private val predefinedResults = listOf(
@@ -267,7 +262,12 @@ class HelloController : Initializable {
         setupInitialValues()
         setupEventHandlers()
         createInitialPoint()
-        renderContourSafely()   // 초기 등고선 표시
+
+        // Setup 3D view after FXML is fully loaded
+        Platform.runLater {
+            setup3DContourView()
+            logMessage("초기화 완료 - contourBox 상태: ${if (contourBox != null) "정상" else "null"}")
+        }
     }
 
     private fun setupInitialValues() {
@@ -343,15 +343,15 @@ class HelloController : Initializable {
         }
 
         xField.textProperty().addListener { _, _, newValue ->
-            try { pointData.x = newValue.toDoubleOrNull() ?: 0.0; calculateDeviation(pointData, deviField); renderContourSafely() }
+            try { pointData.x = newValue.toDoubleOrNull() ?: 0.0; calculateDeviation(pointData, deviField) }
             catch (e: Exception) { logMessage("X 값 오류: ${e.message}") }
         }
         yField.textProperty().addListener { _, _, newValue ->
-            try { pointData.y = newValue.toDoubleOrNull() ?: 0.0; calculateDeviation(pointData, deviField); renderContourSafely() }
+            try { pointData.y = newValue.toDoubleOrNull() ?: 0.0; calculateDeviation(pointData, deviField) }
             catch (e: Exception) { logMessage("Y 값 오류: ${e.message}") }
         }
         zField.textProperty().addListener { _, _, newValue ->
-            try { pointData.z = newValue.toDoubleOrNull() ?: 0.0; calculateDeviation(pointData, deviField); renderContourSafely() }
+            try { pointData.z = newValue.toDoubleOrNull() ?: 0.0; calculateDeviation(pointData, deviField) }
             catch (e: Exception) { logMessage("Z 값 오류: ${e.message}") }
         }
 
@@ -378,7 +378,7 @@ class HelloController : Initializable {
         dynamicContainer?.children?.add(pointUI)
         pointCounter++
         logMessage("새 포인트 P${pointCounter-1}이 추가되었습니다")
-        renderContourSafely()
+        update3DContourView()
     }
 
     private fun removeLastPoint() {
@@ -388,7 +388,7 @@ class HelloController : Initializable {
             removedUI?.let { dynamicContainer?.children?.remove(it) }
             pointCounter--
             logMessage("포인트 ${removedPoint?.pointName}이 제거되었습니다")
-            renderContourSafely()
+            update3DContourView()
         } else {
             logMessage("최소 1개의 포인트는 유지되어야 합니다")
         }
@@ -413,7 +413,7 @@ class HelloController : Initializable {
         updateWheelPositions(resultData)
         updateProductInfo(resultData)
         logMessage("데이터셋 '${resultData.name}'이 로드되었습니다")
-        renderContourSafely()
+        update3DContourView()
     }
 
     private fun clearAllPoints() {
@@ -562,7 +562,6 @@ class HelloController : Initializable {
         coordinateY?.text = String.format("%.2f", y)
         coordinateZ?.text = String.format("%.2f", z)
         logMessage("나침반 좌표 계산 완료: 방향=$direction°, 반지름=$radius")
-        renderContourSafely()
     }
 
     @FXML
@@ -577,7 +576,6 @@ class HelloController : Initializable {
         coordinateY?.text = String.format("%.2f", y)
         coordinateZ?.text = String.format("%.2f", z)
         logMessage("방위각 좌표 계산 완료: 방위각=$direction°, 반지름=$radius")
-        renderContourSafely()
     }
 
     @FXML private fun onAddPointInputBtnClick(event: ActionEvent) = addPoint()
@@ -593,7 +591,6 @@ class HelloController : Initializable {
     @FXML
     private fun onResultGraphRadioBtnClick(event: ActionEvent) {
         logMessage("그래프 결과 모드로 변경")
-        renderContourSafely()
     }
 
     @FXML
@@ -608,7 +605,6 @@ class HelloController : Initializable {
         coordinateY?.text = "0"
         coordinateZ?.text = "0"
         logMessage("모든 값이 초기화되었습니다")
-        renderContourSafely()
     }
 
     @FXML private fun onFindButtonClick(event: ActionEvent) { logMessage("포인트 검색을 시작합니다") }
@@ -703,72 +699,118 @@ class HelloController : Initializable {
     @FXML private fun onOptionSetHomeBtn(event: ActionEvent) { logMessage("홈 위치가 설정되었습니다") }
     @FXML private fun onTextSendToBoard(event: ActionEvent) { logMessage("보드에 텍스트를 전송했습니다") }
 
-    private fun renderContour() {
+    private fun setup3DContourView() {
         try {
-            // 포인트 → [x,y,z,devi] 배열로 직렬화 (devi가 0이면 z를 대체값으로 사용)
-            val pts = pointList.map { p ->
-                val devi = if (p.deviation != 0.0) p.deviation else p.z
-                listOf(p.x, p.y, p.z, devi)
-            }
-
-            val tmpDir = Files.createTempDirectory("contour").toFile()
-            val inJson = File(tmpDir, "points.json")
-            val outPng = File(tmpDir, "contour.png")
-
-            val json = buildString {
-                append("[")
-                append(pts.joinToString(",") { arr -> "[${arr[0]},${arr[1]},${arr[2]},${arr[3]}]" })
-                append("]")
-            }
-            inJson.writeText(json)
-
-            val projectRoot = System.getProperty("user.dir")
-            val pyScriptPath = Paths.get(projectRoot, "contourLine.py").toFile().absolutePath
-
-            val pb = ProcessBuilder(
-                "python3", pyScriptPath,
-                "--in", inJson.absolutePath,
-                "--out", outPng.absolutePath,
-                "--sigma", "0.50",
-                "--grid", "260",
-                "--cmap", "turbo",
-                "--contours", "24"
-            )
-            pb.redirectErrorStream(true)
-            val proc = pb.start()
-            val output = proc.inputStream.bufferedReader().readText()
-            val exit = proc.waitFor()
-            if (exit != 0) {
-                logMessage("등고선 생성 실패: Python exit=$exit")
-                println(output)
-                return
-            }
-            if (!outPng.exists()) {
-                logMessage("등고선 PNG가 생성되지 않았습니다")
+            if (contourInitialized) {
+                logMessage("3D 뷰는 이미 초기화되었습니다")
                 return
             }
 
-            Platform.runLater {
-                if (contourImageView == null) {
-                    contourImageView = ImageView().apply {
-                        isPreserveRatio = true
-                        fitWidth = contourBox?.width ?: 520.0
-                        fitHeight = contourBox?.height ?: 420.0
-                    }
-                    contourBox?.children?.add(contourImageView)
-                    contourBox?.widthProperty()?.addListener { _, _, w ->
-                        contourImageView?.fitWidth = w.toDouble()
-                    }
-                    contourBox?.heightProperty()?.addListener { _, _, h ->
-                        contourImageView?.fitHeight = h.toDouble()
-                    }
-                }
-                contourImageView?.image = Image(outPng.toURI().toString(), false)
-                logMessage("등고선 업데이트 완료")
+            if (contourBox == null) {
+                logMessage("경고: contourBox가 null입니다. FXML 바인딩 확인 필요")
+                return
             }
+
+            val box = contourBox!!
+            logMessage("3D 뷰 초기화 시작 - Box 크기: ${box.prefWidth}x${box.prefHeight}")
+
+            contourInitialized = true
+
+            // Initial placeholder will be replaced by update3DContourView
+            update3DContourView()
+
+            logMessage("3D 등고선 뷰 초기화 완료")
         } catch (e: Exception) {
+            logMessage("3D 뷰 초기화 실패: ${e.message}")
             e.printStackTrace()
-            logMessage("등고선 렌더 실패: ${e.message}")
+        }
+    }
+
+    /**
+     * 3D 등고선 뷰 업데이트 (MVC 패턴: View 업데이트만 담당)
+     * 비즈니스 로직은 ContourVisualizationService에 위임
+     */
+    private fun update3DContourView() {
+        Platform.runLater {
+            try {
+                val box = contourBox ?: return@runLater
+
+                if (pointList.size < 3) {
+                    showPlaceholder(box, pointList.size)
+                    return@runLater
+                }
+
+                logMessage("3D 등고선 업데이트 시작 (${pointList.size}개 포인트)")
+
+                // Convert PointData to Triple<Double, Double, Double>
+                val points = pointList.map { Triple(it.x, it.y, it.z) }
+
+                // Delegate to service layer
+                val subScene = contourVisualizationService.createContourView(
+                    points,
+                    box.prefWidth,
+                    box.prefHeight
+                )
+
+                // Update UI
+                box.children.clear()
+                box.children.add(subScene)
+
+                // Bind SubScene size to contourBox size
+                subScene.widthProperty().bind(box.widthProperty())
+                subScene.heightProperty().bind(box.heightProperty())
+
+                logMessage("3D 등고선 표시 완료 (평면 + 무지개 그라데이션)")
+            } catch (e: Exception) {
+                logMessage("3D 등고선 업데이트 실패: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * 포인트가 부족할 때 플레이스홀더 표시
+     */
+    private fun showPlaceholder(box: Pane, currentPointCount: Int) {
+        box.children.clear()
+        val label = javafx.scene.control.Label("3D Contour View\n(점 ${currentPointCount}개 - 최소 3개 필요)").apply {
+            style = "-fx-text-fill: white; -fx-font-size: 14px; -fx-alignment: center;"
+            prefWidth = box.prefWidth
+            prefHeight = box.prefHeight
+            alignment = Pos.CENTER
+        }
+        box.children.add(label)
+    }
+
+    /**
+     * RBF 보간 기반 3D 표면 뷰어 실행 (별도 창)
+     * BalanceSurfaceApp의 고급 기능 사용:
+     * - RBF 가우시안 보간으로 부드러운 곡면 생성
+     * - 무지개 색상 히트맵 + 등고선 텍스처
+     * - 마우스 궤도 컨트롤
+     */
+    @FXML
+    private fun onShowContour3DClick(event: ActionEvent) {
+        try {
+            if (pointList.size < 3) {
+                logMessage("RBF 3D 표면 뷰어는 최소 3개 이상의 포인트가 필요합니다")
+                return
+            }
+
+            // Convert pointList to array format: [x, y, z, deviation]
+            val points = pointList.map { p ->
+                val devi = if (p.deviation != 0.0) p.deviation else p.z
+                doubleArrayOf(p.x, p.y, p.z, devi)
+            }.toTypedArray()
+
+            // Delegate to service layer
+            rbfSurfaceService.showRbfSurfaceViewer(points)
+            logMessage("RBF 3D 표면 뷰어 창이 실행되었습니다")
+        } catch (e: IllegalArgumentException) {
+            logMessage("뷰어 실행 실패: ${e.message}")
+        } catch (e: Exception) {
+            logMessage("예상치 못한 오류: ${e.message}")
+            e.printStackTrace()
         }
     }
 }

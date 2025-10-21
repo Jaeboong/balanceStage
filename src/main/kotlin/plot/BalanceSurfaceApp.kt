@@ -30,11 +30,15 @@ import plot.visual.Axes
 class BalanceSurfaceApp : Application() {
 
     // [x, y, z(=높이), devi]
-    private val points = arrayOf(
+    private var points = arrayOf(
         doubleArrayOf(0.0,   120.0, 1.95,  2.0),
         doubleArrayOf(0.0,     0.0, 1.654, 4.0),
         doubleArrayOf(121.0,   0.0, 1.798, 6.0),
     )
+
+    fun setPoints(newPoints: Array<DoubleArray>) {
+        points = newPoints
+    }
 
     // Z가 Up인 좌표계로 렌더링
     private val Z_IS_UP = true

@@ -182,8 +182,8 @@ class Simple3DViewerController {
         val dy = e.sceneY - anchorY
         anchorX = e.sceneX
         anchorY = e.sceneY
-        camGroup.transforms += Rotate(-dy * 0.3, Rotate.X_AXIS)
-        camGroup.transforms += Rotate(dx * 0.3, Rotate.Y_AXIS)
+        camGroup.transforms += Rotate(-dy * 0.1, Rotate.X_AXIS)
+        camGroup.transforms += Rotate(dx * 0.1, Rotate.Y_AXIS)
     }
 
     private fun zoomCamera(e: ScrollEvent) {
