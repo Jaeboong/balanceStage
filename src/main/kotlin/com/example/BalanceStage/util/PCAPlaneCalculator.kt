@@ -1,6 +1,8 @@
 package com.example.BalanceStage.util
 
 import kotlin.math.sqrt
+import org.apache.commons.math3.linear.Array2DRowRealMatrix
+import org.apache.commons.math3.linear.EigenDecomposition
 
 /**
  * PCA(주성분분석)를 이용한 평균 평면 계산 유틸리티
@@ -101,59 +103,32 @@ object PCAPlaneCalculator {
 
     /**
      * 3x3 대칭 행렬의 최소 고유벡터 계산 (평면의 법선 방향)
-     * Inverse Power Method 사용
+     * Apache Commons Math의 EigenDecomposition 사용
      */
     private fun findSmallestEigenvector(
         cxx: Double, cxy: Double, cxz: Double,
         cyy: Double, cyz: Double, czz: Double
     ): Point3D {
-        // 초기 벡터 (임의의 단위 벡터)
-        var vx = 1.0
-        var vy = 1.0
-        var vz = 1.0
+        // 공분산 행렬 생성
+        val covMatrix = Array2DRowRealMatrix(arrayOf(
+            doubleArrayOf(cxx, cxy, cxz),
+            doubleArrayOf(cxy, cyy, cyz),
+            doubleArrayOf(cxz, cyz, czz)
+        ))
 
-        // Power Iteration (최소 고유값 찾기 위해 역행렬 사용)
-        // 간소화: 직접 cross product로 법선 근사
-        // Z축이 가장 작은 분산을 가질 때 법선으로 간주
+        // 고유값 분해
+        val eigen = EigenDecomposition(covMatrix)
 
-        // 더 정확한 방법: SVD 대신 간단한 휴리스틱
-        // 가장 작은 대각 요소를 가진 축을 법선으로 선택
-        return when {
-            czz <= cxx && czz <= cyy -> {
-                // Z축 방향이 가장 작은 분산 -> Z를 법선으로
-                Point3D(0.0, 0.0, 1.0)
-            }
-            cxx <= cyy -> {
-                // X축 방향이 가장 작은 분산
-                Point3D(1.0, 0.0, 0.0)
-            }
-            else -> {
-                // Y축 방향이 가장 작은 분산
-                Point3D(0.0, 1.0, 0.0)
-            }
-        }.let { initial ->
-            // Refinement: 10번 반복으로 정교화
-            var vx = initial.x
-            var vy = initial.y
-            var vz = initial.z
+        // 최소 고유값의 인덱스 찾기
+        val minIdx = (0..2).minByOrNull { eigen.getRealEigenvalue(it) } ?: 0
+        val eigenvector = eigen.getEigenvector(minIdx)
 
-            repeat(20) {
-                // v' = C * v
-                val nx = cxx * vx + cxy * vy + cxz * vz
-                val ny = cxy * vx + cyy * vy + cyz * vz
-                val nz = cxz * vx + cyz * vy + czz * vz
-
-                // 정규화
-                val mag = sqrt(nx * nx + ny * ny + nz * nz)
-                if (mag > 1e-10) {
-                    vx = nx / mag
-                    vy = ny / mag
-                    vz = nz / mag
-                }
-            }
-
-            Point3D(vx, vy, vz)
-        }
+        // Point3D로 변환
+        return Point3D(
+            eigenvector.getEntry(0),
+            eigenvector.getEntry(1),
+            eigenvector.getEntry(2)
+        )
     }
 
     /**

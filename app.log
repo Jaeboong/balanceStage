@@ -1,0 +1,104 @@
+
+> Configure project :
+Project : => no module-info.java found
+
+> Task :checkKotlinGradlePluginConfigurationErrors
+> Task :processResources
+
+> Task :compileKotlin
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/BalanceSimulationController.kt:216:17 Variable 'boxWidth' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:603:36 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:618:36 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:632:47 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:633:50 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:634:45 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:635:47 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:638:43 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:643:44 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:649:35 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:663:41 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:664:43 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:719:47 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:720:45 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:721:47 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:722:47 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:723:41 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:724:40 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:725:41 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:726:41 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:729:43 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:730:44 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:731:46 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:733:44 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:734:43 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:737:43 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:740:44 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:741:44 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:742:45 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:743:45 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:744:46 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:745:38 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:746:41 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:747:38 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:748:39 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:749:40 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:750:47 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:751:47 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:752:42 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:753:41 Parameter 'event' is never used
+w: file:///C:/work/bs/balanceStage/src/main/kotlin/com/example/BalanceStage/controller/HelloController.kt:805:17 Variable 'boxWidth' is never used
+
+> Task :compileJava NO-SOURCE
+> Task :classes
+> Task :resolveMainClassName
+
+> Task :bootRun
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.3)
+
+2025-10-21T15:42:09.758+09:00  INFO 9336 --- [BalanceStage] [           main] c.e.B.BalanceStageApplication$Companion  : Starting BalanceStageApplication.Companion using Java 17.0.9 with PID 9336 (C:\work\bs\balanceStage\build\classes\kotlin\main started by SSAFY in C:\work\bs\balanceStage)
+2025-10-21T15:42:09.760+09:00  INFO 9336 --- [BalanceStage] [           main] c.e.B.BalanceStageApplication$Companion  : No active profile set, falling back to 1 default profile: "default"
+2025-10-21T15:42:10.246+09:00  INFO 9336 --- [BalanceStage] [           main] c.e.B.BalanceStageApplication$Companion  : Started BalanceStageApplication.Companion in 0.717 seconds (process running for 1.218)
+2025-10-21T15:42:10.300+09:00  WARN 9336 --- [BalanceStage] [lication Thread] javafx                                   : Loading FXML document with JavaFX API of version 21 by JavaFX runtime of version 17.0.2-ea
+[15:42:10] 데이터셋 'TK#1'이 로드되었습니다
+[15:42:11] PCA 기준 평면: -0.0012·x + -0.0025·y + 1.0000·z + -1.6540 = 0
+[15:42:11] 평면 중심점: (40.33, 40.00, 1.80)
+[15:42:11]   P1: (0.00, 120.00, Z=1.9500) 편차=+0.0000 mm
+[15:42:11]   P2: (0.00, 0.00, Z=1.6540) 편차=+0.0000 mm
+[15:42:11]   P3: (121.00, 0.00, Z=1.7980) 편차=+0.0000 mm
+[15:42:11] Canvas 생성: 420.0 x 420.0
+등고선 렌더링 범위:
+  Canvas: 420x420, 렌더링: 360x360, 여백: 30px
+  데이터: X[0.00, 121.00] Y[0.00, 120.00]
+  뷰포트: X[-6.05, 127.05] Y[-6.55, 126.55]
+  종횡비: Render=1.00, Data=1.01
+[15:42:11] 등고선 업데이트 완료 (PCA 기준, Canvas 재사용)
+[15:42:11] PCA 기준 평면: -0.0012·x + -0.0025·y + 1.0000·z + -1.6540 = 0
+[15:42:11] 평면 중심점: (40.33, 40.00, 1.80)
+[15:42:11]   P1: (0.00, 120.00, Z=1.9500) 편차=+0.0000 mm
+[15:42:11]   P2: (0.00, 0.00, Z=1.6540) 편차=+0.0000 mm
+[15:42:11]   P3: (121.00, 0.00, Z=1.7980) 편차=+0.0000 mm
+등고선 렌더링 범위:
+  Canvas: 420x420, 렌더링: 360x360, 여백: 30px
+  데이터: X[0.00, 121.00] Y[0.00, 120.00]
+  뷰포트: X[-6.05, 127.05] Y[-6.55, 126.55]
+  종횡비: Render=1.00, Data=1.01
+[15:42:11] 등고선 업데이트 완료 (PCA 기준, Canvas 재사용)
+
+[Incubating] Problems report is available at: file:///C:/work/bs/balanceStage/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 6s
+5 actionable tasks: 5 executed

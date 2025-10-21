@@ -32,12 +32,8 @@ dependencies {
     implementation("com.dlsc.formsfx:formsfx-core:11.6.0") { exclude(group = "org.openjfx") }
 
     implementation("com.fazecast:jSerialComm:2.10.4")
-
-    val fxyzVersion = "0.6.0"
-    implementation("org.fxyz3d:fxyz3d:$fxyzVersion")
-    implementation("org.fxyz3d:fxyz3d-importers:$fxyzVersion")
-
     implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+    implementation("org.apache.commons:commons-math3:3.6.1")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")

@@ -27,7 +27,10 @@ import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import com.example.BalanceStage.util.PCAPlaneCalculator
 import com.example.BalanceStage.util.ContourRenderer
+import com.example.BalanceStage.util.BalanceSimulator
 import javafx.scene.canvas.Canvas
+import javafx.scene.input.KeyEvent
+import javafx.scene.input.KeyCode
 
 // Point 데이터 클래스
 data class PointData(
@@ -35,7 +38,11 @@ data class PointData(
     var x: Double = 0.0,
     var y: Double = 0.0,
     var z: Double = 0.0,
-    var deviation: Double = 0.0
+    var deviation: Double = 0.0,
+    var xField: TextField? = null,    // UI TextField 참조
+    var yField: TextField? = null,    // UI TextField 참조
+    var zField: TextField? = null,    // UI TextField 참조
+    var deviField: TextField? = null  // UI TextField 참조
 )
 
 // 결과 데이터 클래스
@@ -79,6 +86,11 @@ class HelloController : Initializable {
         pendingTask = scheduler.schedule({ block() }, delayMs, TimeUnit.MILLISECONDS)
     }
     private fun renderContourSafely() = debounce(200) { renderContour() }
+
+    // === 밸런스 시뮬레이션 (UI 제어만) ===
+    private var balanceSimulator: BalanceSimulator? = null
+    private var isSimulationRunning = false
+    private val simulationHelper = BalanceSimulationController() // 비즈니스 로직 위임
 
     // 미리 정의된 데이터셋들
     private val predefinedResults = listOf(
@@ -281,6 +293,23 @@ class HelloController : Initializable {
                 }
             }
         }
+
+        // Ctrl+S 단축키 설정
+        setupSimulationShortcut()
+    }
+
+    /**
+     * Ctrl+S 단축키 설정
+     */
+    private fun setupSimulationShortcut() {
+        Platform.runLater {
+            pageMainPane?.scene?.addEventFilter(KeyEvent.KEY_PRESSED) { event ->
+                if (event.isControlDown && event.code == KeyCode.S) {
+                    toggleSimulation()
+                    event.consume()
+                }
+            }
+        }
     }
 
     private var hasRenderedInitialContour = false
@@ -357,16 +386,22 @@ class HelloController : Initializable {
             isEditable = false
         }
 
+        // PointData에 TextField 참조 저장
+        pointData.xField = xField
+        pointData.yField = yField
+        pointData.zField = zField
+        pointData.deviField = deviField
+
         xField.textProperty().addListener { _, _, newValue ->
-            try { pointData.x = newValue.toDoubleOrNull() ?: 0.0; calculateDeviation(pointData, deviField); renderContourSafely() }
+            try { pointData.x = newValue.toDoubleOrNull() ?: 0.0; renderContourSafely() }
             catch (e: Exception) { logMessage("X 값 오류: ${e.message}") }
         }
         yField.textProperty().addListener { _, _, newValue ->
-            try { pointData.y = newValue.toDoubleOrNull() ?: 0.0; calculateDeviation(pointData, deviField); renderContourSafely() }
+            try { pointData.y = newValue.toDoubleOrNull() ?: 0.0; renderContourSafely() }
             catch (e: Exception) { logMessage("Y 값 오류: ${e.message}") }
         }
         zField.textProperty().addListener { _, _, newValue ->
-            try { pointData.z = newValue.toDoubleOrNull() ?: 0.0; calculateDeviation(pointData, deviField); renderContourSafely() }
+            try { pointData.z = newValue.toDoubleOrNull() ?: 0.0; renderContourSafely() }
             catch (e: Exception) { logMessage("Z 값 오류: ${e.message}") }
         }
 
@@ -379,10 +414,9 @@ class HelloController : Initializable {
         return pointRow
     }
 
-    private fun calculateDeviation(pointData: PointData, deviField: TextField) {
-        // 현재는 계산 없이 z 사용(또는 0). 필요 시 여기서 실제 편차 계산 로직 연결
-        pointData.deviation = 0.0
-        deviField.text = "0.000"
+    private fun updateDeviationUI(pointData: PointData) {
+        // UI 업데이트 (편차 값이 pointData.deviation에 이미 계산되어 있음)
+        pointData.deviField?.text = String.format("%.3f", pointData.deviation)
     }
 
     private fun addNewPoint() {
@@ -726,23 +760,40 @@ class HelloController : Initializable {
                 return
             }
 
-            // 1. XY 평면 기준으로 Z값 편차 계산 (평균 Z를 기준 평면으로)
-            val avgZ = pointList.map { it.z }.average()
+            // 1. Point3D 리스트로 변환
+            val pts = pointList.map { PCAPlaneCalculator.Point3D(it.x, it.y, it.z) }
 
-            val deviations = pointList.map { p ->
-                val deviation = p.z - avgZ
-                Triple(p.x, p.y, deviation)
+            // 2. PCA 평면 계산
+            val plane = PCAPlaneCalculator.calculateBestFitPlane(pts)
+
+            val deviations = if (plane != null) {
+                // PCA 평면 기준 편차 계산
+                PCAPlaneCalculator.calculateDeviations(pts, plane)
+            } else {
+                // Fallback: 평균 Z 방식
+                logMessage("PCA 계산 실패, 평균 Z 방식 사용")
+                val avgZ = pointList.map { it.z }.average()
+                pointList.map { p -> Triple(p.x, p.y, p.z - avgZ) }
             }
 
-            // 2. 편차를 pointList에 업데이트 (UI 반영)
+            // 3. 편차를 pointList에 업데이트 및 UI 반영
             pointList.forEachIndexed { index, point ->
                 if (index < deviations.size) {
                     point.deviation = deviations[index].third
+                    // UI 업데이트 (Platform.runLater 내부에서 실행)
+                    Platform.runLater { updateDeviationUI(point) }
                 }
             }
 
             // 디버깅: 기준 평면과 편차 출력
-            logMessage("기준 평면: Z = %.4f (평균 높이)".format(avgZ))
+            if (plane != null) {
+                logMessage("PCA 기준 평면: %.4f·x + %.4f·y + %.4f·z + %.4f = 0".format(
+                    plane.a, plane.b, plane.c, plane.d
+                ))
+                logMessage("평면 중심점: (%.2f, %.2f, %.2f)".format(
+                    plane.centroid.x, plane.centroid.y, plane.centroid.z
+                ))
+            }
             deviations.forEachIndexed { i, (x, y, dev) ->
                 val sign = if (dev >= 0) "+" else ""
                 logMessage("  P${i+1}: (%.2f, %.2f, Z=%.4f) 편차=$sign%.4f mm".format(
@@ -750,55 +801,121 @@ class HelloController : Initializable {
                 ))
             }
 
-            // 5. contourBox 크기 확인 (0이면 기본값 사용)
+            // 4. contourBox 크기 확인 (0이면 기본값 사용)
             val boxWidth = (contourBox?.width?.takeIf { it > 0.0 }) ?: 520.0
             val boxHeight = (contourBox?.height?.takeIf { it > 0.0 }) ?: 420.0
 
-            // 6. Kotlin 등고선 렌더러로 Canvas 생성
-            val renderer = ContourRenderer(boxWidth, boxHeight)
-            val config = ContourRenderer.ContourConfig(
-                gridSize = 200,
-                numContours = 20,
-                sigma = 0.30,
-                colorMap = ContourRenderer.ColorMap.SPECTRAL
-            )
+            // 5. 렌더링 설정 (시뮬레이션 중에는 초저해상도)
+            val config = if (isSimulationRunning) {
+                // 시뮬레이션 중: 초저해상도 (60fps 부드러움)
+                ContourRenderer.ContourConfig(
+                    gridSize = 60,      // 3,600셀 (91% 감소)
+                    numContours = 8,    // 등고선 줄이기
+                    sigma = 0.0,        // 스무딩 제거
+                    colorMap = ContourRenderer.ColorMap.SPECTRAL
+                )
+            } else {
+                // 완료 후: 고품질
+                ContourRenderer.ContourConfig(
+                    gridSize = 200,     // 40,000셀
+                    numContours = 20,
+                    sigma = 0.30,
+                    colorMap = ContourRenderer.ColorMap.SPECTRAL
+                )
+            }
 
-            val canvas = renderer.render(deviations, config)
-
-            // 7. UI 업데이트 (Platform.runLater)
+            // 6. UI 업데이트 (Platform.runLater) - Canvas 재사용
             Platform.runLater {
                 if (contourBox == null) {
                     logMessage("ERROR: contourBox가 null입니다!")
                     return@runLater
                 }
 
-                // Canvas 최대 크기 제한
-                canvas.width = canvas.width.coerceAtMost(contourBox!!.width)
-                canvas.height = canvas.height.coerceAtMost(contourBox!!.height)
+                // Canvas 재사용 로직: 크기가 변경되었거나 처음 생성 시에만 새로 생성
+                val canvasWidth = 420.0  // 가로 크기 축소
+                if (contourCanvas == null ||
+                    contourCanvas?.width != canvasWidth ||
+                    contourCanvas?.height != boxHeight) {
+                    // 기존 Canvas 제거
+                    contourBox?.children?.removeIf { it is Canvas }
 
-                logMessage("Canvas 크기: ${canvas.width} x ${canvas.height}")
-                logMessage("contourBox 크기: ${contourBox?.width} x ${contourBox?.height}")
+                    // 새 Canvas 생성
+                    contourCanvas = Canvas(canvasWidth, boxHeight)
+                    contourBox?.children?.add(contourCanvas!!)
+                    logMessage("Canvas 생성: $canvasWidth x $boxHeight")
+                }
 
-                // 기존 캔버스 제거
-                val removedCount = contourBox?.children?.count { it is Canvas } ?: 0
-                contourBox?.children?.removeIf { it is Canvas }
-                logMessage("기존 Canvas $removedCount 개 제거됨")
+                // 기존 Canvas에 렌더링 (내용 지우고 다시 그리기)
+                val gc = contourCanvas!!.graphicsContext2D
+                gc.clearRect(0.0, 0.0, canvasWidth, boxHeight)
 
-                // 새 캔버스 추가
-                contourCanvas = canvas
+                // ContourRenderer로 렌더링
+                val renderer = ContourRenderer(canvasWidth, boxHeight)
+                renderer.renderToGraphicsContext(gc, deviations, config)
 
-                // Canvas가 컨테이너를 넘어가지 않도록 설정
-                canvas.maxWidth(contourBox!!.width)
-                canvas.maxHeight(contourBox!!.height)
-
-                val added = contourBox?.children?.add(canvas)
-                logMessage("Canvas 추가: $added, 현재 children 수: ${contourBox?.children?.size}")
-
-                logMessage("등고선 업데이트 완료 (평균 Z 기준)")
+                val method = if (plane != null) "PCA 기준" else "평균 Z 기준"
+                logMessage("등고선 업데이트 완료 ($method, Canvas 재사용)")
             }
         } catch (e: Exception) {
             e.printStackTrace()
             logMessage("등고선 렌더 실패: ${e.message}")
+        }
+    }
+
+    // === 밸런스 시뮬레이션 제어 (UI만, 로직은 위임) ===
+
+    /**
+     * 시뮬레이션 시작/중지 토글
+     */
+    private fun toggleSimulation() {
+        if (isSimulationRunning) {
+            stopSimulation()
+        } else {
+            startSimulation()
+        }
+    }
+
+    /**
+     * 시뮬레이션 시작
+     */
+    private fun startSimulation() {
+        if (pointList.size < 3) {
+            logMessage("❌ 시뮬레이션: 최소 3개의 점이 필요합니다")
+            return
+        }
+
+        balanceSimulator = BalanceSimulator(
+            points = pointList,
+            updateCallback = {
+                // 비즈니스 로직: simulationHelper에 위임
+                Platform.runLater {
+                    simulationHelper.recalculateDeviationsFor(pointList)
+                    renderContour()
+                }
+            },
+            statusCallback = { msg ->
+                Platform.runLater { logMessage(msg) }
+            }
+        )
+
+        balanceSimulator?.start()
+        isSimulationRunning = true
+        logMessage("⚙ 밸런스 시뮬레이션 시작 (Ctrl+S로 중지)")
+    }
+
+    /**
+     * 시뮬레이션 중지
+     */
+    private fun stopSimulation() {
+        balanceSimulator?.stop()
+        balanceSimulator = null
+        isSimulationRunning = false
+        logMessage("⏸ 시뮬레이션 중지됨")
+
+        // 완료 후 고품질로 재렌더링
+        Platform.runLater {
+            renderContour()
+            logMessage("✓ 고품질 등고선 렌더링 완료")
         }
     }
 }

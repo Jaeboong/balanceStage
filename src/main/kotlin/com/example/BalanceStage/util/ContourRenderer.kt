@@ -36,7 +36,106 @@ class ContourRenderer(
     }
 
     /**
-     * 등고선 렌더링 메인 함수
+     * 기존 GraphicsContext에 렌더링 (Canvas 재사용용)
+     * @param gc GraphicsContext
+     * @param points (x, y, deviation) 트리플 리스트
+     * @param config 렌더링 설정
+     */
+    fun renderToGraphicsContext(
+        gc: javafx.scene.canvas.GraphicsContext,
+        points: List<Triple<Double, Double, Double>>,
+        config: ContourConfig = ContourConfig()
+    ) {
+        if (points.isEmpty()) {
+            // 빈 캔버스
+            gc.fill = Color.LIGHTGRAY
+            gc.fillRect(0.0, 0.0, width, height)
+            gc.fill = Color.BLACK
+            gc.fillText("데이터 없음", width / 2 - 30, height / 2)
+            return
+        }
+
+        // 1. Canvas 내부 여백 설정 (픽셀 단위)
+        val canvasPadding = 30.0  // 상하좌우 30px 여백
+        val renderWidth = width - 2 * canvasPadding
+        val renderHeight = height - 2 * canvasPadding
+
+        // 2. 데이터 범위 계산
+        val xMin = points.minOf { it.first }
+        val xMax = points.maxOf { it.first }
+        val yMin = points.minOf { it.second }
+        val yMax = points.maxOf { it.second }
+        val zMin = points.minOf { it.third }
+        val zMax = points.maxOf { it.third }
+
+        // 3. 데이터의 실제 범위 계산 (여백 10% 추가)
+        val dataPadding = 1.1 // 10% 여유
+        val xRange = ((xMax - xMin) * dataPadding).coerceAtLeast(1.0)
+        val yRange = ((yMax - yMin) * dataPadding).coerceAtLeast(1.0)
+
+        // 4. 중심점 계산
+        val xCenter = (xMin + xMax) / 2.0
+        val yCenter = (yMin + yMax) / 2.0
+
+        // 5. 렌더링 영역 종횡비에 맞춰 범위 조정
+        val renderAspectRatio = renderWidth / renderHeight
+        val dataAspectRatio = xRange / yRange
+
+        val (finalXRange, finalYRange) = if (dataAspectRatio > renderAspectRatio) {
+            // 데이터가 가로로 더 넓음 -> Y 범위를 확장
+            xRange to xRange / renderAspectRatio
+        } else {
+            // 데이터가 세로로 더 높음 -> X 범위를 확장
+            yRange * renderAspectRatio to yRange
+        }
+
+        // 6. 뷰포트 범위 계산 (중심점 기준 대칭)
+        val xStart = xCenter - finalXRange / 2.0
+        val xEnd = xCenter + finalXRange / 2.0
+        val yStart = yCenter - finalYRange / 2.0
+        val yEnd = yCenter + finalYRange / 2.0
+
+        // 디버깅 출력
+        println("등고선 렌더링 범위:")
+        println("  Canvas: %.0fx%.0f, 렌더링: %.0fx%.0f, 여백: %.0fpx".format(
+            width, height, renderWidth, renderHeight, canvasPadding
+        ))
+        println("  데이터: X[%.2f, %.2f] Y[%.2f, %.2f]".format(xMin, xMax, yMin, yMax))
+        println("  뷰포트: X[%.2f, %.2f] Y[%.2f, %.2f]".format(xStart, xEnd, yStart, yEnd))
+        println("  종횡비: Render=%.2f, Data=%.2f".format(renderAspectRatio, dataAspectRatio))
+
+        // 7. 그리드 생성 및 보간
+        val grid = createInterpolatedGrid(
+            points, xStart, xEnd, yStart, yEnd,
+            config.gridSize, config.sigma
+        )
+
+        // 8. 그리드 데이터 기준 z 범위 재계산
+        val gridZMin = grid.flatMap { it.toList() }.minOrNull() ?: zMin
+        val gridZMax = grid.flatMap { it.toList() }.maxOrNull() ?: zMax
+
+        // 9. Canvas 변환 적용 (여백 만큼 이동)
+        gc.save()
+        gc.translate(canvasPadding, canvasPadding)
+
+        // 10. 컬러맵으로 그리드 렌더링 (렌더링 영역 크기로)
+        renderGridWithColorMap(gc, grid, gridZMin, gridZMax, config.colorMap, renderWidth, renderHeight)
+
+        // 11. 등고선 그리기
+        drawContourLines(gc, grid, gridZMin, gridZMax, config.numContours, renderWidth, renderHeight)
+
+        // 12. 원본 측정점 표시
+        drawOriginalPoints(gc, points, xStart, xEnd, yStart, yEnd, renderWidth, renderHeight)
+
+        // 13. Canvas 변환 복원
+        gc.restore()
+
+        // 14. 컬러바 추가 (원래 Canvas 좌표계에서)
+        drawColorBar(gc, gridZMin, gridZMax, config.colorMap)
+    }
+
+    /**
+     * 등고선 렌더링 메인 함수 (하위 호환용)
      * @param points (x, y, deviation) 트리플 리스트
      * @param config 렌더링 설정
      * @return 렌더링된 Canvas
@@ -47,79 +146,7 @@ class ContourRenderer(
     ): Canvas {
         val canvas = Canvas(width, height)
         val gc = canvas.graphicsContext2D
-
-        if (points.isEmpty()) {
-            // 빈 캔버스 반환
-            gc.fill = Color.LIGHTGRAY
-            gc.fillRect(0.0, 0.0, width, height)
-            gc.fill = Color.BLACK
-            gc.fillText("데이터 없음", width / 2 - 30, height / 2)
-            return canvas
-        }
-
-        // 1. 데이터 범위 계산
-        val xMin = points.minOf { it.first }
-        val xMax = points.maxOf { it.first }
-        val yMin = points.minOf { it.second }
-        val yMax = points.maxOf { it.second }
-        val zMin = points.minOf { it.third }
-        val zMax = points.maxOf { it.third }
-
-        // 2. 데이터의 실제 범위 계산
-        val xRange = (xMax - xMin).coerceAtLeast(1.0)
-        val yRange = (yMax - yMin).coerceAtLeast(1.0)
-
-        // 3. 종횡비 유지하면서 모든 점이 보이도록 범위 조정
-        val aspectRatio = width / height
-        val dataAspectRatio = xRange / yRange
-
-        val (adjustedXRange, adjustedYRange) = if (dataAspectRatio > aspectRatio) {
-            // 데이터가 가로로 더 넓음 -> Y 범위를 확장
-            xRange to xRange / aspectRatio
-        } else {
-            // 데이터가 세로로 더 높음 -> X 범위를 확장
-            yRange * aspectRatio to yRange
-        }
-
-        // 4. 중심점 기준으로 대칭 확장 + 여유 공간 20%
-        val xCenter = (xMin + xMax) / 2.0
-        val yCenter = (yMin + yMax) / 2.0
-        val paddingFactor = 1.2 // 20% 여유
-
-        val xStart = xCenter - (adjustedXRange * paddingFactor) / 2.0
-        val xEnd = xCenter + (adjustedXRange * paddingFactor) / 2.0
-        val yStart = yCenter - (adjustedYRange * paddingFactor) / 2.0
-        val yEnd = yCenter + (adjustedYRange * paddingFactor) / 2.0
-
-        // 디버깅 출력
-        println("등고선 렌더링 범위:")
-        println("  데이터: X[%.2f, %.2f] Y[%.2f, %.2f]".format(xMin, xMax, yMin, yMax))
-        println("  뷰포트: X[%.2f, %.2f] Y[%.2f, %.2f]".format(xStart, xEnd, yStart, yEnd))
-        println("  종횡비: Canvas=%.2f, Data=%.2f".format(aspectRatio, dataAspectRatio))
-
-        // 2. 그리드 생성 및 보간
-        val grid = createInterpolatedGrid(
-            points, xStart, xEnd, yStart, yEnd,
-            config.gridSize, config.sigma
-        )
-
-        // 3. 그리드 데이터 기준 z 범위 재계산
-        val gridZMin = grid.flatMap { it.toList() }.minOrNull() ?: zMin
-        val gridZMax = grid.flatMap { it.toList() }.maxOrNull() ?: zMax
-        val zRange = (gridZMax - gridZMin).coerceAtLeast(0.001)
-
-        // 4. 컬러맵으로 그리드 렌더링
-        renderGridWithColorMap(gc, grid, gridZMin, gridZMax, config.colorMap)
-
-        // 5. 등고선 그리기
-        drawContourLines(gc, grid, gridZMin, gridZMax, config.numContours)
-
-        // 6. 원본 측정점 표시
-        drawOriginalPoints(gc, points, xStart, xEnd, yStart, yEnd)
-
-        // 7. 컬러바 추가
-        drawColorBar(gc, gridZMin, gridZMax, config.colorMap)
-
+        renderToGraphicsContext(gc, points, config)
         return canvas
     }
 
@@ -137,7 +164,7 @@ class ContourRenderer(
         val xStep = (xEnd - xStart) / (gridSize - 1)
         val yStep = (yEnd - yStart) / (gridSize - 1)
 
-        // IDW 보간
+        // IDW 보간 (안정성 개선)
         for (i in 0 until gridSize) {
             for (j in 0 until gridSize) {
                 val gx = xStart + i * xStep
@@ -145,15 +172,27 @@ class ContourRenderer(
 
                 var sumWeights = 0.0
                 var sumValues = 0.0
+                var exactMatch = false
 
                 points.forEach { (px, py, pz) ->
                     val dist = sqrt((gx - px).pow(2) + (gy - py).pow(2))
-                    val weight = if (dist < 0.001) 1e10 else 1.0 / (dist.pow(2) + 1e-6)
+
+                    // 측정점에 정확히 매칭되면 원값 사용
+                    if (dist < 0.001) {
+                        grid[i][j] = pz
+                        exactMatch = true
+                        return@forEach  // 이 그리드 셀은 완료
+                    }
+
+                    val weight = 1.0 / (dist.pow(2) + 1e-6)
                     sumWeights += weight
                     sumValues += weight * pz
                 }
 
-                grid[i][j] = if (sumWeights > 0) sumValues / sumWeights else 0.0
+                // 측정점이 아닌 경우에만 가중 평균 계산
+                if (!exactMatch) {
+                    grid[i][j] = if (sumWeights > 0) sumValues / sumWeights else 0.0
+                }
             }
         }
 
@@ -223,11 +262,13 @@ class ContourRenderer(
         grid: Array<DoubleArray>,
         zMin: Double,
         zMax: Double,
-        colorMap: ColorMap
+        colorMap: ColorMap,
+        renderWidth: Double,
+        renderHeight: Double
     ) {
         val size = grid.size
-        val cellWidth = width / size
-        val cellHeight = height / size
+        val cellWidth = renderWidth / size
+        val cellHeight = renderHeight / size
         val zRange = (zMax - zMin).coerceAtLeast(0.001)
 
         for (i in 0 until size) {
@@ -249,11 +290,13 @@ class ContourRenderer(
         grid: Array<DoubleArray>,
         zMin: Double,
         zMax: Double,
-        numContours: Int
+        numContours: Int,
+        renderWidth: Double,
+        renderHeight: Double
     ) {
         val size = grid.size
-        val cellWidth = width / size
-        val cellHeight = height / size
+        val cellWidth = renderWidth / size
+        val cellHeight = renderHeight / size
         val zRange = (zMax - zMin).coerceAtLeast(0.001)
 
         gc.stroke = Color.BLACK
@@ -336,7 +379,9 @@ class ContourRenderer(
         gc: javafx.scene.canvas.GraphicsContext,
         points: List<Triple<Double, Double, Double>>,
         xStart: Double, xEnd: Double,
-        yStart: Double, yEnd: Double
+        yStart: Double, yEnd: Double,
+        renderWidth: Double,
+        renderHeight: Double
     ) {
         val xRange = xEnd - xStart
         val yRange = yEnd - yStart
@@ -346,8 +391,8 @@ class ContourRenderer(
         gc.lineWidth = 2.5
 
         points.forEachIndexed { index, (px, py, pz) ->
-            val sx = ((px - xStart) / xRange * width).coerceIn(0.0, width)
-            val sy = height - ((py - yStart) / yRange * height).coerceIn(0.0, height)
+            val sx = ((px - xStart) / xRange * renderWidth).coerceIn(0.0, renderWidth)
+            val sy = renderHeight - ((py - yStart) / yRange * renderHeight).coerceIn(0.0, renderHeight)
 
             // 점 라벨 (P1, P2, P3...)
             val label = "P${index + 1}"
