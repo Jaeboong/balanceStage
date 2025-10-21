@@ -20,7 +20,8 @@ class ContourRenderer(
         val gridSize: Int = 260,              // 그리드 해상도
         val numContours: Int = 24,            // 등고선 개수
         val sigma: Double = 0.50,             // 가우시안 스무딩 시그마
-        val colorMap: ColorMap = ColorMap.TURBO
+        val colorMap: ColorMap = ColorMap.TURBO,
+        val neutralDeviationThreshold: Double = 0.01
     )
 
     /**
@@ -113,13 +114,23 @@ class ContourRenderer(
         // 8. 그리드 데이터 기준 z 범위 재계산
         val gridZMin = grid.flatMap { it.toList() }.minOrNull() ?: zMin
         val gridZMax = grid.flatMap { it.toList() }.maxOrNull() ?: zMax
+        val colorScaleFactor = computeNeutralScaleFactor(gridZMin, gridZMax, config.neutralDeviationThreshold)
 
         // 9. Canvas 변환 적용 (여백 만큼 이동)
         gc.save()
         gc.translate(canvasPadding, canvasPadding)
 
         // 10. 컬러맵으로 그리드 렌더링 (렌더링 영역 크기로)
-        renderGridWithColorMap(gc, grid, gridZMin, gridZMax, config.colorMap, renderWidth, renderHeight)
+        renderGridWithColorMap(
+            gc,
+            grid,
+            gridZMin,
+            gridZMax,
+            config.colorMap,
+            renderWidth,
+            renderHeight,
+            colorScaleFactor
+        )
 
         // 11. 등고선 그리기
         drawContourLines(gc, grid, gridZMin, gridZMax, config.numContours, renderWidth, renderHeight)
@@ -131,7 +142,7 @@ class ContourRenderer(
         gc.restore()
 
         // 14. 컬러바 추가 (원래 Canvas 좌표계에서)
-        drawColorBar(gc, gridZMin, gridZMax, config.colorMap)
+        drawColorBar(gc, gridZMin, gridZMax, config.colorMap, colorScaleFactor)
     }
 
     /**
@@ -264,7 +275,8 @@ class ContourRenderer(
         zMax: Double,
         colorMap: ColorMap,
         renderWidth: Double,
-        renderHeight: Double
+        renderHeight: Double,
+        scaleFactor: Double
     ) {
         val size = grid.size
         val cellWidth = renderWidth / size
@@ -274,7 +286,8 @@ class ContourRenderer(
         for (i in 0 until size) {
             for (j in 0 until size) {
                 val normalized = ((grid[i][j] - zMin) / zRange).coerceIn(0.0, 1.0)
-                val color = getColor(normalized, colorMap)
+                val adjusted = applyNeutralCompression(normalized, scaleFactor)
+                val color = getColor(adjusted, colorMap)
 
                 gc.fill = color
                 gc.fillRect(i * cellWidth, (size - 1 - j) * cellHeight, cellWidth + 1, cellHeight + 1)
@@ -413,7 +426,8 @@ class ContourRenderer(
         gc: javafx.scene.canvas.GraphicsContext,
         zMin: Double,
         zMax: Double,
-        colorMap: ColorMap
+        colorMap: ColorMap,
+        scaleFactor: Double
     ) {
         val barWidth = 20.0
         val barHeight = height * 0.6
@@ -426,7 +440,8 @@ class ContourRenderer(
 
         for (i in 0 until steps) {
             val t = i.toDouble() / steps
-            val color = getColor(t, colorMap)
+            val adjusted = applyNeutralCompression(t, scaleFactor)
+            val color = getColor(adjusted, colorMap)
             gc.fill = color
             gc.fillRect(barX, barY + barHeight - (i + 1) * stepHeight, barWidth, stepHeight + 1)
         }
@@ -454,6 +469,17 @@ class ContourRenderer(
             ColorMap.SPECTRAL -> spectralColorMap(t)
             ColorMap.RDYLBU -> rdylbuColorMap(t)
         }
+    }
+
+    private fun computeNeutralScaleFactor(zMin: Double, zMax: Double, threshold: Double): Double {
+        if (threshold <= 0.0) return 1.0
+        val maxAbs = max(abs(zMin), abs(zMax))
+        return (maxAbs / threshold).coerceIn(0.0, 1.0)
+    }
+
+    private fun applyNeutralCompression(normalized: Double, scaleFactor: Double): Double {
+        if (scaleFactor >= 0.999) return normalized
+        return ((normalized - 0.5) * scaleFactor + 0.5).coerceIn(0.0, 1.0)
     }
 
     private fun turboColorMap(t: Double): Color {
