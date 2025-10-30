@@ -308,24 +308,3 @@ visualization/
 ├── ContourConfig.kt      (3.0KB)  - 렌더링 설정 클래스
 └── ContourRenderer.kt    (20.6KB) - 메인 렌더링 엔진
 ```
-
-
-### B. 참고 자료
-
-**밸런스 스테이지 제품 정보**
-- 회사 카탈로그: BLUE ROBOT Vol.2501K
-- 특허: 제 10-2422225호 (밸런스 스테이지)
-- 국제 특허: PCT/KR2022/013859
-
-**기술 문서**
-- JavaFX Graphics API Documentation
-- Marching Squares Algorithm
-- IDW Interpolation Method
-- Gaussian Smoothing Theory
-
-**컬러맵 참고**
-- Google Turbo Colormap
-- Matplotlib Colormaps
-- ColorBrewer Guidelines
-
-**END OF REPORT**
