@@ -60,16 +60,15 @@ PCA(주성분분석)를 통한 평균 평면 산출
 
 ## 2. 문제 인식
 
-### 2.1 기존 코드 구조
+### 2.1 기존 시스템
 
-기존 프로젝트에서 2D 시각화 기능은 `util/ContourRenderer.kt` 파일에 구현되어 있었음:
+회사는 기존 밸런스 스테이지 시스템의 소스 코드를 공개하지 않았음. 개발 요구사항으로 UI 인터페이스 파일 `resources/balanceMasterUI_v240.fxml`만 제공되었으나, 이 파일은 빈 껍데기에 불과함.
 
-- ContourRenderer 클래스 내부에 ContourConfig (data class)와 ColorMap (enum)이 중첩 클래스 형태로 포함
-- util 패키지 내부에 위치하여 독립적인 시각화 모듈로 분리되지 않은 상태
+따라서 기존 시스템의 2D 시각화 기능 구현 방식을 확인할 수 없었으며, 처음부터 새로 개발해야 하는 상황임.
 
 ### 2.2 개발 요구사항
 
-회사로부터 2D 시각화 기능을 독립 모듈로 분리하여 제출하라는 요청을 받음. 이는 다음 목적을 위함:
+회사로부터 제공된 UI 인터페이스(`balanceMasterUI_v240.fxml`)에 맞춰 2D 시각화 기능을 새로 개발하라는 요청을 받음. 개발된 모듈은 다음 목적으로 활용됨:
 
 - 밸런스 스테이지 제품군 확장 시 재사용
 - 외부 시스템 연동 지원
@@ -132,14 +131,14 @@ PCA(주성분분석)를 통한 평균 평면 산출
 
 ### 4.1 아키텍처 설계
 
-시각화 기능을 독립 모듈로 분리하여 다음과 같이 재구성함:
+제공된 UI 인터페이스에 맞춰 시각화 기능을 독립 모듈로 개발하여 다음과 같이 구성함:
 
-#### 개선된 구조
+#### 모듈 구조
 ```
 Balance Stage Application
 ├─ UI Controller (이벤트 처리, 화면 제어)
 ├─ Business Logic (PCA 계산, Deviation 계산)
-└─ Visualization Module (독립 모듈)
+└─ Visualization Module (독립 모듈 - 신규 개발)
     ├─ ContourRenderer
     ├─ ContourConfig
     └─ ColorMap
@@ -147,30 +146,23 @@ Balance Stage Application
 
 Visualization Module은 JavaFX만 의존하며 완전히 독립적으로 동작함.
 
-### 4.2 모듈 분리 전략
+### 4.2 모듈 개발 전략
 
-#### 패키지 구조 변경
+#### 패키지 구조 설계
 
-**Before:**
-```
-util/
-└── ContourRenderer.kt (중첩 클래스 사용)
-    ├── class ContourConfig
-    └── enum ColorMap
-```
+독립적인 시각화 모듈을 다음과 같이 구성함:
 
-**After:**
 ```
 visualization/ (독립 패키지)
-├── ColorMap.kt (독립 파일)
-├── ContourConfig.kt (독립 파일)
+├── ColorMap.kt (6가지 컬러맵 정의)
+├── ContourConfig.kt (렌더링 설정)
 ├── ContourRenderer.kt (렌더링 엔진)
 └── README.md (사용 가이드)
 ```
 
 #### 의존성 최소화
 
-독립 모듈로 분리하면서 외부 의존성을 JavaFX만으로 제한함:
+외부 의존성을 JavaFX만으로 제한하여 완전한 독립성을 확보함:
 - JavaFX Graphics (Canvas, GraphicsContext)
 - Kotlin Standard Library
 
