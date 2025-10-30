@@ -12,7 +12,8 @@ import kotlin.random.Random
 class BalanceSimulator(
     private val points: MutableList<PointData>,
     private val updateCallback: () -> Unit,
-    private val statusCallback: (String) -> Unit
+    private val statusCallback: (String) -> Unit,
+    private val completionCallback: (() -> Unit)? = null
 ) {
     private var animationTimer: AnimationTimer? = null
     private var targetZ: Double = 0.0
@@ -26,7 +27,7 @@ class BalanceSimulator(
         private const val PHYSICS_INTERVAL_NS = 100_000_000L  // 물리: 100ms (10fps)
         private const val CONVERGENCE_RATE = 0.015            // 1.5% 수렴 (느리게)
         private const val NOISE_AMPLITUDE = 0.008             // 노이즈 감소
-        private const val COMPLETION_THRESHOLD = 0.005        // 정밀하게
+        private const val COMPLETION_THRESHOLD = 0.003        // 모든 deviation < 0.003mm
         private const val MAX_ITERATIONS = 300                // 충분한 시간
     }
 
@@ -93,18 +94,25 @@ class BalanceSimulator(
 
     /**
      * 완료 조건 체크
-     * - 평균 편차 < 0.01mm
-     * - 또는 100회 이상 반복
+     * - 모든 deviation < 0.003mm
+     * - 또는 300회 이상 반복
      */
     private fun checkCompletion() {
-        val avgDeviation = points.map { abs(it.z - targetZ) }.average()
+        val deviations = points.map { abs(it.z - targetZ) }
+        val maxDeviation = deviations.maxOrNull() ?: 0.0
+        val avgDeviation = deviations.average()
 
-        if (avgDeviation < COMPLETION_THRESHOLD) {
+        // 모든 포인트의 deviation이 0.003mm 미만인지 체크
+        val allDeviationsSmall = deviations.all { it < COMPLETION_THRESHOLD }
+
+        if (allDeviationsSmall) {
             stop()
-            statusCallback(String.format("✓ 평형 완료! 최종 편차: %.4f mm (%d회 반복)", avgDeviation, iteration))
+            statusCallback(String.format("✓ 평형 완료! 최대 편차: %.4f mm, 평균: %.4f mm (%d회 반복)", maxDeviation, avgDeviation, iteration))
+            // 완료 콜백 호출
+            completionCallback?.invoke()
         } else if (iteration >= MAX_ITERATIONS) {
             stop()
-            statusCallback(String.format("⏸ 시뮬레이션 종료 (최대 반복 도달, 편차: %.4f mm)", avgDeviation))
+            statusCallback(String.format("⏸ 시뮬레이션 종료 (최대 반복 도달, 최대 편차: %.4f mm)", maxDeviation))
         }
     }
 

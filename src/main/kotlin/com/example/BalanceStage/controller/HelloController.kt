@@ -26,8 +26,10 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import com.example.BalanceStage.util.PCAPlaneCalculator
-import com.example.BalanceStage.util.ContourRenderer
 import com.example.BalanceStage.util.BalanceSimulator
+import com.example.BalanceStage.visualization.ContourRenderer
+import com.example.BalanceStage.visualization.ContourConfig
+import com.example.BalanceStage.visualization.ColorMap
 import javafx.scene.canvas.Canvas
 import javafx.scene.input.KeyEvent
 import javafx.scene.input.KeyCode
@@ -808,19 +810,19 @@ class HelloController : Initializable {
             // 5. 렌더링 설정 (시뮬레이션 중에는 초저해상도)
             val config = if (isSimulationRunning) {
                 // 시뮬레이션 중: 초저해상도 (60fps 부드러움)
-                ContourRenderer.ContourConfig(
+                ContourConfig(
                     gridSize = 60,      // 3,600셀 (91% 감소)
                     numContours = 8,    // 등고선 줄이기
                     sigma = 0.0,        // 스무딩 제거
-                    colorMap = ContourRenderer.ColorMap.SPECTRAL
+                    colorMap = ColorMap.SPECTRAL
                 )
             } else {
                 // 완료 후: 고품질
-                ContourRenderer.ContourConfig(
+                ContourConfig(
                     gridSize = 200,     // 40,000셀
                     numContours = 20,
                     sigma = 0.30,
-                    colorMap = ContourRenderer.ColorMap.SPECTRAL
+                    colorMap = ColorMap.SPECTRAL
                 )
             }
 
@@ -895,6 +897,17 @@ class HelloController : Initializable {
             },
             statusCallback = { msg ->
                 Platform.runLater { logMessage(msg) }
+            },
+            completionCallback = {
+                // 완료 시 Alert 표시
+                Platform.runLater {
+                    isSimulationRunning = false
+                    val alert = Alert(Alert.AlertType.INFORMATION)
+                    alert.title = "시뮬레이션 완료"
+                    alert.headerText = "밸런스 평형 완료"
+                    alert.contentText = "Complete\n\n모든 deviation이 0.003mm 미만으로 수렴되었습니다."
+                    alert.showAndWait()
+                }
             }
         )
 

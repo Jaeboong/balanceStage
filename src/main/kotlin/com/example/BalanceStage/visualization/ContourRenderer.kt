@@ -1,12 +1,44 @@
-package com.example.BalanceStage.util
+package com.example.BalanceStage.visualization
 
 import javafx.scene.canvas.Canvas
+import javafx.scene.canvas.GraphicsContext
 import javafx.scene.paint.Color
 import kotlin.math.*
 
 /**
- * JavaFX Canvas 기반 등고선 렌더링 엔진
- * PCA 평균 평면 기준 편차를 등고선으로 시각화
+ * JavaFX Canvas 기반 2D 등고선 렌더링 엔진
+ *
+ * 3D 측정 포인트의 편차값을 2D 등고선 맵으로 시각화합니다.
+ *
+ * ## 주요 기능
+ * - IDW(Inverse Distance Weighting) 보간을 통한 그리드 생성
+ * - 가우시안 스무딩을 통한 노이즈 제거
+ * - Marching Squares 알고리즘을 이용한 등고선 추출
+ * - 6가지 컬러맵 지원 (TURBO, JET, VIRIDIS, COOLWARM, SPECTRAL, RDYLBU)
+ * - 측정점 라벨 표시 (P1, P2, P3...)
+ * - 컬러바를 통한 값 범위 표시
+ *
+ * ## 사용 예제
+ * ```kotlin
+ * // 1. 측정 데이터 준비 (x, y, deviation)
+ * val points = listOf(
+ *     Triple(0.0, 0.0, 0.005),
+ *     Triple(10.0, 0.0, -0.003),
+ *     Triple(10.0, 10.0, 0.002)
+ * )
+ *
+ * // 2. 렌더러 생성
+ * val renderer = ContourRenderer(width = 520.0, height = 420.0)
+ *
+ * // 3. 렌더링
+ * val canvas = renderer.render(points, ContourConfig.HIGH_QUALITY)
+ *
+ * // 4. UI에 추가
+ * myPane.children.add(canvas)
+ * ```
+ *
+ * @property width Canvas 너비 (픽셀)
+ * @property height Canvas 높이 (픽셀)
  */
 class ContourRenderer(
     private val width: Double = 520.0,
@@ -14,36 +46,36 @@ class ContourRenderer(
 ) {
 
     /**
-     * 등고선 렌더링 설정
+     * 등고선 렌더링 메인 함수
+     *
+     * 새로운 Canvas 객체를 생성하고 등고선을 렌더링합니다.
+     *
+     * @param points 측정 포인트 리스트. 각 요소는 Triple(x좌표, y좌표, z편차값)
+     * @param config 렌더링 설정 (기본값: ContourConfig())
+     * @return 렌더링된 Canvas 객체
      */
-    data class ContourConfig(
-        val gridSize: Int = 260,              // 그리드 해상도
-        val numContours: Int = 24,            // 등고선 개수
-        val sigma: Double = 0.50,             // 가우시안 스무딩 시그마
-        val colorMap: ColorMap = ColorMap.TURBO,
-        val neutralDeviationThreshold: Double = 0.01
-    )
-
-    /**
-     * 색상 맵 타입
-     */
-    enum class ColorMap {
-        TURBO,      // Google Turbo (무지개색)
-        JET,        // Matlab Jet (전통적 무지개)
-        VIRIDIS,    // 지각적으로 균일한 색상
-        COOLWARM,   // 파랑-빨강 발산형
-        SPECTRAL,   // 등고선용 - 빨강→노랑→초록→파랑
-        RDYLBU      // Red-Yellow-Blue (기상도 스타일)
+    fun render(
+        points: List<Triple<Double, Double, Double>>,
+        config: ContourConfig = ContourConfig()
+    ): Canvas {
+        val canvas = Canvas(width, height)
+        val gc = canvas.graphicsContext2D
+        renderToGraphicsContext(gc, points, config)
+        return canvas
     }
 
     /**
-     * 기존 GraphicsContext에 렌더링 (Canvas 재사용용)
-     * @param gc GraphicsContext
-     * @param points (x, y, deviation) 트리플 리스트
-     * @param config 렌더링 설정
+     * 기존 GraphicsContext에 렌더링
+     *
+     * Canvas 재사용이 필요한 경우 이 메서드를 사용합니다.
+     * 기존 Canvas의 GraphicsContext에 직접 그립니다.
+     *
+     * @param gc 렌더링할 GraphicsContext
+     * @param points 측정 포인트 리스트. 각 요소는 Triple(x좌표, y좌표, z편차값)
+     * @param config 렌더링 설정 (기본값: ContourConfig())
      */
     fun renderToGraphicsContext(
-        gc: javafx.scene.canvas.GraphicsContext,
+        gc: GraphicsContext,
         points: List<Triple<Double, Double, Double>>,
         config: ContourConfig = ContourConfig()
     ) {
@@ -143,22 +175,6 @@ class ContourRenderer(
 
         // 14. 컬러바 추가 (원래 Canvas 좌표계에서)
         drawColorBar(gc, gridZMin, gridZMax, config.colorMap, colorScaleFactor)
-    }
-
-    /**
-     * 등고선 렌더링 메인 함수 (하위 호환용)
-     * @param points (x, y, deviation) 트리플 리스트
-     * @param config 렌더링 설정
-     * @return 렌더링된 Canvas
-     */
-    fun render(
-        points: List<Triple<Double, Double, Double>>,
-        config: ContourConfig = ContourConfig()
-    ): Canvas {
-        val canvas = Canvas(width, height)
-        val gc = canvas.graphicsContext2D
-        renderToGraphicsContext(gc, points, config)
-        return canvas
     }
 
     /**
@@ -269,7 +285,7 @@ class ContourRenderer(
      * 컬러맵으로 그리드 렌더링
      */
     private fun renderGridWithColorMap(
-        gc: javafx.scene.canvas.GraphicsContext,
+        gc: GraphicsContext,
         grid: Array<DoubleArray>,
         zMin: Double,
         zMax: Double,
@@ -299,7 +315,7 @@ class ContourRenderer(
      * 등고선 그리기 (Marching Squares 알고리즘)
      */
     private fun drawContourLines(
-        gc: javafx.scene.canvas.GraphicsContext,
+        gc: GraphicsContext,
         grid: Array<DoubleArray>,
         zMin: Double,
         zMax: Double,
@@ -343,7 +359,7 @@ class ContourRenderer(
      * Marching Squares 셀 내 선분 그리기
      */
     private fun drawMarchingSquareSegment(
-        gc: javafx.scene.canvas.GraphicsContext,
+        gc: GraphicsContext,
         v00: Double, v10: Double, v01: Double, v11: Double,
         level: Double,
         x: Double, y: Double,
@@ -389,7 +405,7 @@ class ContourRenderer(
      * 원본 측정점 표시 (텍스트 라벨로)
      */
     private fun drawOriginalPoints(
-        gc: javafx.scene.canvas.GraphicsContext,
+        gc: GraphicsContext,
         points: List<Triple<Double, Double, Double>>,
         xStart: Double, xEnd: Double,
         yStart: Double, yEnd: Double,
@@ -423,7 +439,7 @@ class ContourRenderer(
      * 컬러바 추가
      */
     private fun drawColorBar(
-        gc: javafx.scene.canvas.GraphicsContext,
+        gc: GraphicsContext,
         zMin: Double,
         zMax: Double,
         colorMap: ColorMap,

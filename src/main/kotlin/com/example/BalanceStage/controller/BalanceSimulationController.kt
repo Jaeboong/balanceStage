@@ -2,7 +2,9 @@ package com.example.BalanceStage.controller
 
 import com.example.BalanceStage.util.BalanceSimulator
 import com.example.BalanceStage.util.PCAPlaneCalculator
-import com.example.BalanceStage.util.ContourRenderer
+import com.example.BalanceStage.visualization.ContourRenderer
+import com.example.BalanceStage.visualization.ContourConfig
+import com.example.BalanceStage.visualization.ColorMap
 import javafx.application.Platform
 import javafx.fxml.FXML
 import javafx.fxml.Initializable
@@ -218,11 +220,11 @@ class BalanceSimulationController : Initializable {
             val canvasWidth = 420.0
 
             // 4. 렌더링 설정
-            val config = ContourRenderer.ContourConfig(
+            val config = ContourConfig(
                 gridSize = 200,
                 numContours = 20,
                 sigma = 0.30,
-                colorMap = ContourRenderer.ColorMap.SPECTRAL
+                colorMap = ColorMap.SPECTRAL
             )
 
             // 5. Canvas 재사용
